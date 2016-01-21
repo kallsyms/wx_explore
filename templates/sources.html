@@ -1,0 +1,21 @@
+{% extends "bootstrap/base.html" %}
+
+{% set active_page = "sources" %}
+
+{% block title %}WX Website{% endblock %}
+
+{% block navbar %}{% include 'navbar.html' %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>Sources</h2>
+    <hr>
+    <ul>
+        {% for source in sources %}
+            <li>
+                <a href="{{ source.src_url }}">{{ source.name }}</a>
+            </li>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

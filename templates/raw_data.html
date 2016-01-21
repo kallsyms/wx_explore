@@ -1,0 +1,19 @@
+{% extends "bootstrap/base.html" %}
+
+{% set active_page = "sources" %}
+
+{% block title %}WX Website{% endblock %}
+
+{% block navbar %}{% include 'navbar.html' %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>Raw data for {{ zipcode }}</h2>
+    <hr>
+    {% for data in datas %}
+        <div class="datapoint">
+            <p>{{ data.src_field.source.name }}: {{ data.src_field.name }} @ {{ data.time }}: {{ data.value }}</p>
+        </div>
+    {% endfor %}
+</div>
+{% endblock %}
