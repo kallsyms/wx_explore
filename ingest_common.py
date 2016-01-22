@@ -42,7 +42,7 @@ def get_location_index_map(grib_message, locations):
         idx = tree.query([location.lon, location.lat])[1]
         x = idx % shape[1]
         y = idx / shape[1]
-        yield (location.zipcode, x, y)
+        yield (location.id, x, y)
 
 
 def ingest_grib_file(file_path, source, transformers={}):
@@ -71,10 +71,10 @@ def ingest_grib_file(file_path, source, transformers={}):
         # Ensure the zipcode->coordinate lookup table has been created for this field
         if CoordinateLookup.query.filter_by(src_field_id=field.id).count() == 0:
             print("Generating coordinate lookup table")
-            for zipcode, x, y in get_location_index_map(msgs[0], locations):
+            for loc_id, x, y in get_location_index_map(msgs[0], locations):
                 lookup_entry = CoordinateLookup()
                 lookup_entry.src_field_id = field.id
-                lookup_entry.zipcode = zipcode
+                lookup_entry.location_id = loc_id
                 lookup_entry.x = x
                 lookup_entry.y = y
                 db.session.add(lookup_entry)
@@ -88,7 +88,7 @@ def ingest_grib_file(file_path, source, transformers={}):
         lookup_table = {}
 
         for entry in CoordinateLookup.query.filter_by(src_field_id=field.id).all():
-            lookup_table[entry.zipcode] = (entry.x, entry.y)
+            lookup_table[entry.location_id] = (entry.x, entry.y)
 
         # Default transformer is the str function/cast
         if field.name not in transformers:
@@ -103,10 +103,10 @@ def ingest_grib_file(file_path, source, transformers={}):
             for location in locations:
                 data_point = DataPoint()
                 data_point.src_field_id = field.id
-                data_point.zipcode = location.zipcode
+                data_point.location_id = location.id
                 data_point.time = msg.validDate
-                x = lookup_table[location.zipcode][0]
-                y = lookup_table[location.zipcode][1]
+                x = lookup_table[location.id][0]
+                y = lookup_table[location.id][1]
                 data_point.value = str(transformers[field.name](vals[y][x]))
 
                 db.session.add(data_point)

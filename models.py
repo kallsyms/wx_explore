@@ -28,7 +28,7 @@ class SourceField(db.Model):
     '''
     id = db.Column(db.Integer, primary_key=True)
     source_id = db.Column(db.Integer, db.ForeignKey('source.id'), unique=True)
-    source = db.relationship('Source', backref='source_fields')
+    source = db.relationship('Source', backref='fields')
     name = db.Column(db.String(64), unique=True)
     type_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
     type = db.relationship('Metric')
@@ -39,7 +39,7 @@ class Location(db.Model):
     A specific location that we pre-compute data for.
     Currently just zipcodes.
     '''
-    zipcode = db.Column(db.String(5), primary_key=True)
+    id = db.Column(db.String(10), primary_key=True)
     lat = db.Column(db.Float)
     lon = db.Column(db.Float)
 
@@ -49,7 +49,8 @@ class CoordinateLookup(db.Model):
     Table that holds pre-computed coordinates for a given zipcode in a given source.
     I.e. The zipcode 11111 corresponds to the point (a,b) in HRRR files
     '''
-    zipcode = db.Column(db.String(5), db.ForeignKey('location.zipcode'), primary_key=True)
+    location_id = db.Column(db.String(10), db.ForeignKey('location.id'), primary_key=True)
+    location = db.relationship('Location')
     src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
     src_field = db.relationship('SourceField')
     x = db.Column(db.Integer)
@@ -63,6 +64,7 @@ class DataPoint(db.Model):
     '''
     src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
     src_field = db.relationship('SourceField')
-    zipcode = db.Column(db.String(5), db.ForeignKey('location.zipcode'), primary_key=True)
+    location_id = db.Column(db.String(10), db.ForeignKey('location.id'), primary_key=True)
+    location = db.relationship('Location', backref='data_points')
     time = db.Column(db.DateTime, primary_key=True)
     value = db.Column(db.String(128))

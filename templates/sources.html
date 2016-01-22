@@ -14,6 +14,11 @@
         {% for source in sources %}
             <li>
                 <a href="{{ source.src_url }}">{{ source.name }}</a>
+                <ul>
+                {% for field in source.fields %}
+                    <li>{{ field.name }}</li>
+                {% endfor %}
+                </ul>
             </li>
         {% endfor %}
     </ul>
