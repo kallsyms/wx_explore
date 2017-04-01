@@ -19,6 +19,7 @@ class Metric(db.Model):
     '''
     id = db.Column(db.Integer, primary_key=True)
     name = db.Column(db.String(128))
+    units = db.Column(db.String(16))
 
 
 class SourceField(db.Model):
@@ -27,10 +28,11 @@ class SourceField(db.Model):
     E.g. Composite reflectivity @ entire atmosphere, 2m temps, visibility @ ground
     '''
     id = db.Column(db.Integer, primary_key=True)
-    source_id = db.Column(db.Integer, db.ForeignKey('source.id'), unique=True)
-    source = db.relationship('Source', backref='fields')
+    source_id = db.Column(db.Integer, db.ForeignKey('source.id'))
     name = db.Column(db.String(64), unique=True)
     type_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
+
+    source = db.relationship('Source', backref='fields')
     type = db.relationship('Metric')
 
 
@@ -39,22 +41,24 @@ class Location(db.Model):
     A specific location that we pre-compute data for.
     Currently just zipcodes.
     '''
-    id = db.Column(db.String(10), primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
     lat = db.Column(db.Float)
     lon = db.Column(db.Float)
+    name = db.Column(db.String(512))
 
 
 class CoordinateLookup(db.Model):
     '''
     Table that holds pre-computed coordinates for a given zipcode in a given source.
-    I.e. The zipcode 11111 corresponds to the point (a,b) in HRRR files
+    I.e. The zipcode 11111 corresponds to the point (x,y) in HRRR files
     '''
-    location_id = db.Column(db.String(10), db.ForeignKey('location.id'), primary_key=True)
-    location = db.relationship('Location')
+    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
     src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
-    src_field = db.relationship('SourceField')
     x = db.Column(db.Integer)
     y = db.Column(db.Integer)
+
+    location = db.relationship('Location')
+    src_field = db.relationship('SourceField')
 
 
 class DataPoint(db.Model):
@@ -63,8 +67,9 @@ class DataPoint(db.Model):
     E.g. HRRR predicted visibility at noon for 11201 = 10mi
     '''
     src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
-    src_field = db.relationship('SourceField')
-    location_id = db.Column(db.String(10), db.ForeignKey('location.id'), primary_key=True)
-    location = db.relationship('Location', backref='data_points')
+    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
     time = db.Column(db.DateTime, primary_key=True)
-    value = db.Column(db.String(128))
+    value = db.Column(db.Numeric)
+
+    src_field = db.relationship('SourceField')
+    location = db.relationship('Location', backref='data_points')

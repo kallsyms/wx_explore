@@ -1,0 +1,23 @@
+{% extends "bootstrap/base.html" %}
+
+{% set active_page = "loc_wx" %}
+
+{% block title %}WX Website{% endblock %}
+
+{% block navbar %}{% include 'navbar.html' %}{% endblock %}
+
+{% block content %}
+<div class="container">
+    <h2>Weather for {{ location.id }}</h2>
+    <hr>
+    <div class="current-weather">
+        <h1>Temperature: {{ wx[0].get('Temperature') }}</h1>
+        <h2>{{ wx[0].get('Conditions') }}</h2>
+        <h3>Wind: {{ wx[0].get('Wind') }}</h3>
+        <h3>Humidity: {{ wx[0].get('Humidity') }}</h3>
+        <h3>Dew Point: {{ wx[0].get('Dew Point Temperature') }}</h3>
+        <h3>Visibility: {{ wx[0].get('Visibility') }}</h3>
+    </div>
+
+</div>
+{% endblock %}
