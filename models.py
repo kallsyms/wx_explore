@@ -50,7 +50,7 @@ class Location(db.Model):
 class CoordinateLookup(db.Model):
     '''
     Table that holds pre-computed coordinates for a given zipcode in a given source.
-    I.e. The zipcode 11111 corresponds to the point (x,y) in HRRR files
+    E.g. The zipcode 11111 corresponds to the point (x,y) in HRRR files
     '''
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
     src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
