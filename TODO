@@ -1,5 +1,5 @@
 * More data sources
-* API
+* Figure out best representation to return metric data in API
 * Move front-end to static pages that use API
 * Location saving in web interface
 * Maps/nbsp integration

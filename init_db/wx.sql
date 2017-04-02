@@ -147,7 +147,7 @@ CREATE TABLE source_field (
     id integer NOT NULL,
     source_id integer,
     name character varying(64),
-    type_id integer
+    metric_id integer
 );
 
 
@@ -33423,7 +33423,7 @@ COPY source (id, name, src_url, last_updated) FROM stdin;
 -- Data for Name: source_field; Type: TABLE DATA; Schema: public; Owner: wx
 --
 
-COPY source_field (id, source_id, name, type_id) FROM stdin;
+COPY source_field (id, source_id, name, metric_id) FROM stdin;
 1	1	Visibility	2
 3	1	2 metre temperature	1
 4	1	Categorical rain	3
@@ -33553,7 +33553,7 @@ ALTER TABLE ONLY source_field
 --
 
 ALTER TABLE ONLY source_field
-    ADD CONSTRAINT source_field_type_fkey FOREIGN KEY (type_id) REFERENCES metric(id);
+    ADD CONSTRAINT source_field_type_fkey FOREIGN KEY (metric_id) REFERENCES metric(id);
 
 
 --

@@ -21,7 +21,8 @@ def get_location_index_map(grib_message, locations):
     shape = grib_message.values.shape
     tree = cKDTree(numpy.dstack([lon.ravel(), lat.ravel()])[0])
     for location in locations:
-        idx = tree.query([location.lon, location.lat])[1]
+        coords = wkb.loads(bytes(location.location.data))
+        idx = tree.query([coords.x, coords.y])[1]
         x = idx % shape[1]
         y = idx / shape[1]
         yield (location.id, x, y)
@@ -38,7 +39,7 @@ def ingest_grib_file(file_path, source, transformers={}):
 
     logger.info("Processing GRIB file '%s'", file_path)
     grib = pygrib.open(file_path)
-    locations = Location.query.with_entities(Location.id, Location.lat, Location.lon).all()
+    locations = Location.query.with_entities(Location.id, Location.location).all()
 
     for field in SourceField.query.filter_by(source_id=source.id).all():
         logger.debug("Processing field '%s'", field.name)

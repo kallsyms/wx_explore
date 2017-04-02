@@ -1,5 +1,6 @@
 from app import db
-
+from geoalchemy2 import Geography
+from shapely import wkb
 
 class Source(db.Model):
     '''
@@ -11,6 +12,11 @@ class Source(db.Model):
     src_url = db.Column(db.String(1024))
     last_updated = db.Column(db.DateTime)
 
+    def serialize(self):
+        return {"id": self.id,
+                "name": self.name,
+                "src_url": self.src_url,
+                "last_updated": self.last_updated}
 
 class Metric(db.Model):
     '''
@@ -21,6 +27,11 @@ class Metric(db.Model):
     name = db.Column(db.String(128))
     units = db.Column(db.String(16))
 
+    def serialize(self):
+        return {"id": self.id,
+                "name": self.name,
+                "units": self.units}
+
 
 class SourceField(db.Model):
     '''
@@ -30,10 +41,16 @@ class SourceField(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     source_id = db.Column(db.Integer, db.ForeignKey('source.id'))
     name = db.Column(db.String(64), unique=True)
-    type_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
+    metric_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
 
     source = db.relationship('Source', backref='fields')
-    type = db.relationship('Metric')
+    metric = db.relationship('Metric')
+
+    def serialize(self):
+        return {"id": self.id,
+                "source_id": self.source_id,
+                "name": self.name,
+                "metric_id": self.metric_id}
 
 
 class Location(db.Model):
@@ -42,9 +59,23 @@ class Location(db.Model):
     Currently just zipcodes.
     '''
     id = db.Column(db.Integer, primary_key=True)
-    lat = db.Column(db.Float)
-    lon = db.Column(db.Float)
+    location = db.Column(Geography('Point,4326'))
     name = db.Column(db.String(512))
+
+    def get_coords(self):
+        '''
+        :return: lon, lat
+        '''
+        point = wkb.loads(bytes(self.location.data))
+        return point.x, point.y
+
+    def serialize(self):
+        coords = self.get_coords()
+
+        return {"id": self.id,
+                "lon": coords[0],
+                "lat": coords[1],
+                "name": self.name}
 
 
 class CoordinateLookup(db.Model):
@@ -73,3 +104,9 @@ class DataPoint(db.Model):
 
     src_field = db.relationship('SourceField')
     location = db.relationship('Location', backref='data_points')
+
+    def serialize(self):
+        return {"src_field_id": self.src_field_id,
+                "location_id": self.location_id,
+                "time": self.time,
+                "value": self.value}
