@@ -47,7 +47,6 @@ class SourceField(db.Model):
     source_id = db.Column(db.Integer, db.ForeignKey('source.id'))
     name = db.Column(db.String(255))
     metric_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
-    band_id = db.Column(db.Integer)  # The band number in the underlying gridded data
 
     source = db.relationship('Source', backref='fields')
     metric = db.relationship('Metric')
@@ -57,6 +56,9 @@ class SourceField(db.Model):
                 "source_id": self.source_id,
                 "name": self.name,
                 "metric_id": self.metric_id}
+
+    def __repr__(self):
+        return f"<SourceField id={self.id} name='{self.name}'>"
 
 
 class Location(db.Model):

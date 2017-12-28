@@ -40,14 +40,17 @@ def ingest_grib_file(file_path, source):
     '''
 
     logger.info("Processing GRIB file '%s'", file_path)
+
     grib = pygrib.open(file_path)
+    ds = gdal.Open(file_path, gdalconst.GA_ReadOnly)
+
     locations = Location.query.with_entities(Location.id, Location.location).all()
 
     for field in SourceField.query.filter_by(source_id=source.id).all():
         logger.debug("Processing field '%s'", field.name)
 
         try:
-            msg = grib.message(field.band_id)
+            msgs = grib.select(name=field.name)
         except:
             logger.warning("No such field '%s' in GRIB file %s", field, file_path)
             continue
@@ -66,27 +69,25 @@ def ingest_grib_file(file_path, source):
 
             db.session.bulk_save_objects(entries)
             db.session.commit()
+        else:
+            logger.debug("Coordinate lookup table already generated")
 
-        # Store the zip->location lookup table locally to avoid tons of DB hits
-        lookup_table = {}
+        for msg in msgs:
+            raster = DataRaster()
+            raster.source_field_id = field.id
+            raster.time = msg.validDate
 
-        for entry in CoordinateLookup.query.filter_by(src_field_id=field.id).all():
-            lookup_table[entry.location_id] = (entry.x, entry.y)
+            band_id = msg.messagenumber
+            opts = make_options(4326, band_id)
+            band = ds.GetRasterBand(band_id)
 
-        raster = DataRaster()
-        raster.source_field_id = field.id
-        raster.time = msg.validDate
+            wkb = wkblify_raster_header(opts, ds, 1, (band_id, band_id + 1))
+            wkb += wkblify_band_header(opts, band)
+            wkb += wkblify_band(opts, band, 1, 0, 0, (ds.RasterXSize, ds.RasterYSize), (ds.RasterXSize, ds.RasterYSize),
+                                file_path, band_id)
 
-        opts = make_options(4326, field.band_id)
-        ds = gdal.Open(file_path, gdalconst.GA_ReadOnly)
-        band = ds.GetRasterBand(field.band_id)
-        wkb = wkblify_raster_header(opts, ds, 1, (field.band_id, field.band_id + 1))
-        wkb += wkblify_band_header(opts, band)
-        wkb += wkblify_band(opts, band, 1, 0, 0, (ds.RasterXSize, ds.RasterYSize), (ds.RasterXSize, ds.RasterYSize),
-                            file_path, field.band_id)
+            raster.rast = wkb.decode('ascii')
 
-        raster.rast = wkb.decode('ascii')
-
-        db.session.add(raster)
+            db.session.add(raster)
 
         db.session.commit()
