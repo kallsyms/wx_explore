@@ -1,10 +1,13 @@
 #!/usr/bin/env python3
+import gdal
+import gdalconst
 import numpy
 import pygrib
 import logging
 from scipy.spatial import cKDTree
 
 from models import *
+from raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
 from app import db
 
 logger = logging.getLogger('ingest_common')
@@ -28,12 +31,11 @@ def get_location_index_map(grib_message, locations):
         yield (location.id, x, y)
 
 
-def ingest_grib_file(file_path, source, transformers={}):
+def ingest_grib_file(file_path, source):
     '''
     Ingests a given GRIB file into the backend
     :param file_path: Path to the GRIB file
     :param source: Source object which denotes which source this data is from
-    :param transformers: dictionary of field->functions which are used to transform the data
     :return: None
     '''
 
@@ -45,7 +47,7 @@ def ingest_grib_file(file_path, source, transformers={}):
         logger.debug("Processing field '%s'", field.name)
 
         try:
-            msgs = grib.select(name=field.name)
+            msg = grib.message(field.band_id)
         except:
             logger.warning("No such field '%s' in GRIB file %s", field, file_path)
             continue
@@ -54,7 +56,7 @@ def ingest_grib_file(file_path, source, transformers={}):
         if CoordinateLookup.query.filter_by(src_field_id=field.id).count() == 0:
             logger.info("Generating coordinate lookup table for field '%s'", field.name)
             entries = []
-            for loc_id, x, y in get_location_index_map(msgs[0], locations):
+            for loc_id, x, y in get_location_index_map(msg, locations):
                 lookup_entry = CoordinateLookup()
                 lookup_entry.src_field_id = field.id
                 lookup_entry.location_id = loc_id
@@ -71,35 +73,20 @@ def ingest_grib_file(file_path, source, transformers={}):
         for entry in CoordinateLookup.query.filter_by(src_field_id=field.id).all():
             lookup_table[entry.location_id] = (entry.x, entry.y)
 
-        # Add all points to a local array and then insert them in bulk for perf
-        data_points = []
+        raster = DataRaster()
+        raster.source_field_id = field.id
+        raster.time = msg.validDate
 
-        # Create and add each datapoint for each zip in each time's GRIB message
-        for msg in msgs:
-            logger.info("Processing GRIB message '%s' for %s", msg.name, msg.validDate)
+        opts = make_options(4326, field.band_id)
+        ds = gdal.Open(file_path, gdalconst.GA_ReadOnly)
+        band = ds.GetRasterBand(field.band_id)
+        wkb = wkblify_raster_header(opts, ds, 1, (field.band_id, field.band_id + 1))
+        wkb += wkblify_band_header(opts, band)
+        wkb += wkblify_band(opts, band, 1, 0, 0, (ds.RasterXSize, ds.RasterYSize), (ds.RasterXSize, ds.RasterYSize),
+                            file_path, field.band_id)
 
-            vals = msg.values
+        raster.rast = wkb.decode('ascii')
 
-            # Get the new data for each location
-            for location in locations:
-                data_point = DataPoint()
-                data_point.src_field_id = field.id
-                data_point.location_id = location.id
-                data_point.time = msg.validDate
-                x, y = lookup_table[location.id]
+        db.session.add(raster)
 
-                # If a custom data transformer was specified, invoke it
-                if field.name in transformers:
-                    val = transformers[field.name](vals[y][x], msg)
-                else:
-                    val = float(vals[y][x])
-
-                if val is not None:
-                    data_point.value = val
-                    data_points.append(data_point)
-
-        # Clear all of the old data
-        DataPoint.query.filter_by(src_field_id=field.id).delete()
-
-        db.session.bulk_save_objects(data_points)
         db.session.commit()

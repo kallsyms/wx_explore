@@ -3,12 +3,15 @@ from flask import Flask, render_template, abort, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
 from datetime import datetime, timedelta
+from geoalchemy2 import func as geofunc
+
+import logging
 
 import config
 
 
 app = Flask(__name__)
-app.config.from_object('config.DevConfig')
+app.config.from_object(config.DevConfig)
 
 Bootstrap(app)
 
@@ -136,8 +139,9 @@ def wx_for_location(loc_id):
         except ValueError:
             abort(400)
 
-        #if start < now - timedelta(days=1):
-        #    start = now - timedelta(days=1)
+        if not app.debug:
+            if start < now - timedelta(days=1):
+                start = now - timedelta(days=1)
 
     if end is None:
         end = now + timedelta(hours=12)
@@ -147,12 +151,19 @@ def wx_for_location(loc_id):
         except ValueError:
             abort(400)
 
-        if end > now + timedelta(days=7):
-            end = now + timedelta(days=7)
+        if not app.debug:
+            if end > now + timedelta(days=7):
+                end = now + timedelta(days=7)
 
-    data_points = DataPoint.query.filter(DataPoint.location_id == location.id,
-                                         DataPoint.time >= start,
-                                         DataPoint.time <= end).all()
+    # Get all (time, value, metric)s for the time range and metrics desired
+    data_points = db.session.query(DataRaster.time, geofunc.ST_Value(DataRaster.rast, CoordinateLookup.x, CoordinateLookup.y).label("value"),
+                                   SourceField,
+                                   CoordinateLookup)\
+                            .filter(DataRaster.time >= start, DataRaster.time <= end)\
+                            .filter(SourceField.id == DataRaster.source_field_id)\
+                            .filter(CoordinateLookup.src_field_id == SourceField.id)\
+                            .filter(CoordinateLookup.location_id == location.id)\
+                            .all()
 
     times = sorted(set([d.time for d in data_points]))
 
@@ -161,14 +172,18 @@ def wx_for_location(loc_id):
     for i, time in enumerate(times):
         wx[i] = {}
         wx[i]['time'] = time
+        wx[i]['metrics'] = {}
         for m in metrics:
-            wx[i][m.name] = []
+            wx[i]['metrics'][m.name] = []
 
     for d in data_points:
-        wx[times.index(d.time)][d.src_field.metric.name].append({"value": d.value, "src_id": d.src_field_id})
+        wx[times.index(d.time)]['metrics'][d.SourceField.metric.name].append({"value": d.value, "src_id": d.SourceField.id})
 
     return jsonify(wx)
 
 
 if __name__ == '__main__':
+    logging.basicConfig()
+    logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
+    db.create_all()
     app.run(port=5001)

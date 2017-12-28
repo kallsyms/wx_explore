@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 from app import db
-from geoalchemy2 import Geography
+from geoalchemy2 import Geography, Raster
 from shapely import wkb
 
 
@@ -13,6 +13,8 @@ class Source(db.Model):
     name = db.Column(db.String(128))
     src_url = db.Column(db.String(1024))
     last_updated = db.Column(db.DateTime)
+
+    # Fields
 
     def serialize(self):
         return {"id": self.id,
@@ -43,7 +45,7 @@ class SourceField(db.Model):
     '''
     id = db.Column(db.Integer, primary_key=True)
     source_id = db.Column(db.Integer, db.ForeignKey('source.id'))
-    name = db.Column(db.String(255), unique=True)
+    name = db.Column(db.String(255))
     metric_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
     band_id = db.Column(db.Integer)  # The band number in the underlying gridded data
 
@@ -59,7 +61,7 @@ class SourceField(db.Model):
 
 class Location(db.Model):
     '''
-    A specific location that we pre-compute data for.
+    A specific location that we have a lat/lon for.
     Currently just zipcodes.
     '''
     id = db.Column(db.Integer, primary_key=True)
@@ -84,8 +86,8 @@ class Location(db.Model):
 
 class CoordinateLookup(db.Model):
     '''
-    Table that holds pre-computed coordinates for a given zipcode in a given source.
-    E.g. The zipcode 11111 corresponds to the point (x,y) in HRRR files
+    Table that holds pre-computed coordinates for a given Location in a given source field.
+    E.g. The zipcode 11111 corresponds to the point (x,y) in HRRR 2m temp rasters
     '''
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
     src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
@@ -93,4 +95,15 @@ class CoordinateLookup(db.Model):
     y = db.Column(db.Integer)
 
     location = db.relationship('Location')
+    src_field = db.relationship('SourceField')
+
+
+class DataRaster(db.Model):
+    '''
+    Table that holds the actual raster data. One band per row.
+    '''
+    source_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
+    time = db.Column(db.DateTime, primary_key=True)
+    rast = db.Column(Raster)  # Index automatically created for us
+
     src_field = db.relationship('SourceField')
