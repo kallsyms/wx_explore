@@ -1,0 +1,6 @@
+flask
+flask_sqlalchemy
+psycopg2
+flask_bootstrap
+geoalchemy2
+shapely

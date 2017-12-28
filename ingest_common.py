@@ -1,8 +1,8 @@
+#!/usr/bin/env python3
 import numpy
 import pygrib
 import logging
 from scipy.spatial import cKDTree
-from wget import download
 
 from models import *
 from app import db

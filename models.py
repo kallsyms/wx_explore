@@ -1,6 +1,8 @@
+#!/usr/bin/env python3
 from app import db
 from geoalchemy2 import Geography
 from shapely import wkb
+
 
 class Source(db.Model):
     '''
@@ -17,6 +19,7 @@ class Source(db.Model):
                 "name": self.name,
                 "src_url": self.src_url,
                 "last_updated": self.last_updated}
+
 
 class Metric(db.Model):
     '''
@@ -40,8 +43,9 @@ class SourceField(db.Model):
     '''
     id = db.Column(db.Integer, primary_key=True)
     source_id = db.Column(db.Integer, db.ForeignKey('source.id'))
-    name = db.Column(db.String(64), unique=True)
+    name = db.Column(db.String(255), unique=True)
     metric_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
+    band_id = db.Column(db.Integer)  # The band number in the underlying gridded data
 
     source = db.relationship('Source', backref='fields')
     metric = db.relationship('Metric')
@@ -90,23 +94,3 @@ class CoordinateLookup(db.Model):
 
     location = db.relationship('Location')
     src_field = db.relationship('SourceField')
-
-
-class DataPoint(db.Model):
-    '''
-    A specific point of data for a given source field, location, and time
-    E.g. HRRR predicted visibility at noon for 11201 = 10mi
-    '''
-    src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
-    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
-    time = db.Column(db.DateTime, primary_key=True)
-    value = db.Column(db.Numeric)
-
-    src_field = db.relationship('SourceField')
-    location = db.relationship('Location', backref='data_points')
-
-    def serialize(self):
-        return {"src_field_id": self.src_field_id,
-                "location_id": self.location_id,
-                "time": self.time,
-                "value": self.value}

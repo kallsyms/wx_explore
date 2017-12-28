@@ -1,5 +1,6 @@
+#!/usr/bin/env python3
 from flask import Flask, render_template, abort, jsonify, request
-from flask.ext.sqlalchemy import SQLAlchemy
+from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
 from datetime import datetime, timedelta
 
@@ -135,8 +136,8 @@ def wx_for_location(loc_id):
         except ValueError:
             abort(400)
 
-        if start < now - timedelta(days=1):
-            start = now - timedelta(days=1)
+        #if start < now - timedelta(days=1):
+        #    start = now - timedelta(days=1)
 
     if end is None:
         end = now + timedelta(hours=12)
