@@ -3,7 +3,8 @@ from flask import Flask, render_template, abort, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from flask_bootstrap import Bootstrap
 from datetime import datetime, timedelta
-from geoalchemy2 import func as geofunc
+from sqlalchemy import cast
+from geoalchemy2 import func as geofunc, Geometry
 
 import logging
 
@@ -156,13 +157,14 @@ def wx_for_location(loc_id):
                 end = now + timedelta(days=7)
 
     # Get all (time, value, metric)s for the time range and metrics desired
-    data_points = db.session.query(DataRaster.time, geofunc.ST_Value(DataRaster.rast, CoordinateLookup.x, CoordinateLookup.y).label("value"),
+    data_points = db.session.query(DataRaster.time, geofunc.ST_Value(DataRaster.rast, cast(Location.location, Geometry)).label("value"),
                                    SourceField,
-                                   CoordinateLookup)\
+                                   Location)\
                             .filter(DataRaster.time >= start, DataRaster.time <= end)\
                             .filter(SourceField.id == DataRaster.source_field_id)\
-                            .filter(CoordinateLookup.src_field_id == SourceField.id)\
-                            .filter(CoordinateLookup.location_id == location.id)\
+                            .filter(Location.id == location.id)\
+                            .filter(SourceField.metric_id.in_(m.id for m in metrics))\
+                            .filter(geofunc.ST_Intersects(DataRaster.rast, cast(Location.location, Geometry)))\
                             .all()
 
     times = sorted(set([d.time for d in data_points]))

@@ -45,7 +45,11 @@ class SourceField(db.Model):
     '''
     id = db.Column(db.Integer, primary_key=True)
     source_id = db.Column(db.Integer, db.ForeignKey('source.id'))
-    name = db.Column(db.String(255))
+
+    idx_short_name = db.Column(db.String(15))  # e.g. TMP, VIS
+    idx_level = db.Column(db.String(255))  # e.g. surface, 2 m above ground
+    grib_name = db.Column(db.String(255))  # e.g. 2 metre temperature
+
     metric_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
 
     source = db.relationship('Source', backref='fields')
@@ -86,26 +90,14 @@ class Location(db.Model):
                 "name": self.name}
 
 
-class CoordinateLookup(db.Model):
-    '''
-    Table that holds pre-computed coordinates for a given Location in a given source field.
-    E.g. The zipcode 11111 corresponds to the point (x,y) in HRRR 2m temp rasters
-    '''
-    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
-    src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
-    x = db.Column(db.Integer)
-    y = db.Column(db.Integer)
-
-    location = db.relationship('Location')
-    src_field = db.relationship('SourceField')
-
-
 class DataRaster(db.Model):
     '''
-    Table that holds the actual raster data. One band per row.
+    Table that holds the actual raster data. Can't PK off source_field_id and time because
+    of tiling.
     '''
-    source_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
-    time = db.Column(db.DateTime, primary_key=True)
+    id = db.Column(db.Integer, primary_key=True)
+    source_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'))
+    time = db.Column(db.DateTime)
     rast = db.Column(Raster)  # Index automatically created for us
 
     src_field = db.relationship('SourceField')

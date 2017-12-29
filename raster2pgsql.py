@@ -547,7 +547,7 @@ def wkblify(fmt, data):
     valfmt = '\'' + fmt2printfmt(fmt[len(fmt) - 1]) + '\''
     val = valfmt % data
     logit('HEX (\'fmt=%s\', bytes=%d, val=%s):\t\t%s\n' \
-          % (fmt, len(hexstr) / 2, str(val), hexstr))
+          % (fmt, len(hexstr) // 2, str(val), hexstr))
 
     return hexstr
 
@@ -662,8 +662,8 @@ def wkblify_band(options, band, level, xoff, yoff, read_block_size, block_size, 
                                  read_block_size[1] - read_padding_size[1])
 
         if read_padding_size[0] > 0 or read_padding_size[1] > 0:
-            target_block_size = (valid_read_block_size[0] / level, valid_read_block_size[1] / level)
-            target_padding_size = (read_padding_size[0] / level, read_padding_size[1] / level)
+            target_block_size = (valid_read_block_size[0] // level, valid_read_block_size[1] // level)
+            target_padding_size = (read_padding_size[0] // level, read_padding_size[1] // level)
         else:
             target_block_size = block_size
             target_padding_size = (0, 0)

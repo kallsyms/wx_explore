@@ -12,3 +12,8 @@
         * Drawbacks
             * ?
     * Use `ST_Value` with the pre-computed x & y
+
+# Raster Ingest Process
+1. Specific bands are downloaded from GRIBs
+2. grib is reprojected to 4362
+3. Inserted (tiled) into db
