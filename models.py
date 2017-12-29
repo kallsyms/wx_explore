@@ -90,6 +90,19 @@ class Location(db.Model):
                 "name": self.name}
 
 
+class CoordinateLookup(db.Model):
+    '''
+    Table that holds a lookup from location to grid x,y.
+    '''
+    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
+    src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
+    x = db.Column(db.Integer)
+    y = db.Column(db.Integer)
+
+    location = db.relationship('Location')
+    src_field = db.relationship('SourceField')
+
+
 class DataRaster(db.Model):
     '''
     Table that holds the actual raster data. Can't PK off source_field_id and time because
@@ -97,7 +110,9 @@ class DataRaster(db.Model):
     '''
     id = db.Column(db.Integer, primary_key=True)
     source_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'))
-    time = db.Column(db.DateTime)
+    valid_time = db.Column(db.DateTime)
+    run_time = db.Column(db.DateTime)
+    row = db.Column(db.Integer, index=True)
     rast = db.Column(Raster)  # Index automatically created for us
 
     src_field = db.relationship('SourceField')

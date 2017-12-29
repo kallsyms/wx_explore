@@ -6,9 +6,11 @@ from datetime import datetime, timedelta
 from sqlalchemy import cast
 from geoalchemy2 import func as geofunc, Geometry
 
+import collections
 import logging
 
 import config
+import utils
 
 
 app = Flask(__name__)
@@ -157,35 +159,29 @@ def wx_for_location(loc_id):
                 end = now + timedelta(days=7)
 
     # Get all (time, value, metric)s for the time range and metrics desired
-    data_points = db.session.query(DataRaster.time, geofunc.ST_Value(DataRaster.rast, cast(Location.location, Geometry)).label("value"),
+    #                this is 1 because each row's `rast` is only 1 row of data, not the entire 2d grid ---v
+    data_points = db.session.query(DataRaster.run_time, DataRaster.valid_time, geofunc.ST_Value(DataRaster.rast, CoordinateLookup.x, 1).label("value"),
                                    SourceField,
-                                   Location)\
-                            .filter(DataRaster.time >= start, DataRaster.time <= end)\
-                            .filter(SourceField.id == DataRaster.source_field_id)\
-                            .filter(Location.id == location.id)\
+                                   CoordinateLookup)\
+                            .filter(DataRaster.valid_time >= start, DataRaster.valid_time < end)\
+                            .filter(DataRaster.row == CoordinateLookup.y)\
+                            .filter(CoordinateLookup.location_id == location.id) \
+                            .filter(CoordinateLookup.src_field_id == SourceField.id) \
+                            .filter(SourceField.id == DataRaster.source_field_id) \
                             .filter(SourceField.metric_id.in_(m.id for m in metrics))\
-                            .filter(geofunc.ST_Intersects(DataRaster.rast, cast(Location.location, Geometry)))\
                             .all()
 
-    times = sorted(set([d.time for d in data_points]))
-
-    wx = {}
-
-    for i, time in enumerate(times):
-        wx[i] = {}
-        wx[i]['time'] = time
-        wx[i]['metrics'] = {}
-        for m in metrics:
-            wx[i]['metrics'][m.name] = []
+    # wx is a dict of unix_time->metrics, where each metric may have multiple values from different sources
+    wx = collections.defaultdict(lambda: collections.defaultdict(list))
 
     for d in data_points:
-        wx[times.index(d.time)]['metrics'][d.SourceField.metric.name].append({"value": d.value, "src_id": d.SourceField.id})
+        utime = utils.datetime2unix(d.valid_time)
+        wx[utime][d.SourceField.metric.name].append({"value": d.value, "src_field_id": d.SourceField.id, "run_time": utils.datetime2unix(d.run_time)})
 
     return jsonify(wx)
 
 
 if __name__ == '__main__':
     logging.basicConfig()
-    logging.getLogger('sqlalchemy.engine').setLevel(logging.INFO)
     db.create_all()
     app.run(port=5001)

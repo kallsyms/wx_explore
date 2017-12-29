@@ -1,8 +1,9 @@
 #!/usr/bin/env python3
+from scipy.spatial import cKDTree
 import gdal
 import gdalconst
+import numpy
 import pygrib
-import osr
 import logging
 
 from models import *
@@ -12,18 +13,23 @@ from app import db
 logger = logging.getLogger('ingest_common')
 
 
-def reproject_to_epsg(dataset, coord_sys=4326):
-    # https://gis.stackexchange.com/questions/139906/replicating-result-of-gdalwarp-using-gdal-python-bindings
-    dst_srs = osr.SpatialReference()
-    dst_srs.ImportFromEPSG(coord_sys)
-    dst_wkt = dst_srs.ExportToWkt()
-
-    error_threshold = 0.125
-    resampling = gdal.GRA_NearestNeighbour
-
-    tmp_ds = gdal.AutoCreateWarpedVRT(dataset, None, dst_wkt, resampling, error_threshold)
-
-    return tmp_ds
+def get_location_index_map(grib_message, locations):
+    '''
+    Generates grid coordinates for each location in locations from the given GRIB message
+    :param grib_message: The GRIB message for which the coordinates should be generated
+    :param locations: List of locations for which indexes should be generated
+    :return: loc_id,x,y tuples for each given input location
+    '''
+    lat, lon = grib_message.latlons()
+    shape = grib_message.values.shape
+    tree = cKDTree(numpy.dstack([lon.ravel(), lat.ravel()])[0])
+    for location in locations:
+        coords = wkb.loads(bytes(location.location.data))
+        # TODO: make sure all of these coords are normal degrees, not a weird projection
+        idx = tree.query([coords.x, coords.y])[1]
+        x = idx % shape[1]
+        y = idx / shape[1]
+        yield (location.id, x, y)
 
 
 def ingest_grib_file(file_path, source):
@@ -36,40 +42,54 @@ def ingest_grib_file(file_path, source):
     logger.info("Processing GRIB file '%s'", file_path)
 
     grib = pygrib.open(file_path)
-    ds = reproject_to_epsg(gdal.Open(file_path, gdalconst.GA_ReadOnly))
-
-    grid_size_x = 100
-    grid_size_y = 100
+    ds = gdal.Open(file_path, gdalconst.GA_ReadOnly)
 
     for msg in grib:
         field = SourceField.query.filter_by(
             source_id=source.id,
-            grib_name=msg.name).first()
+            grib_name=msg.name,
+        ).first()
 
         if field is None:
             continue
 
         logger.debug("Processing field '%s'", field.grib_name)
 
+        # Ensure the zipcode->coordinate lookup table has been created for this field
+        if CoordinateLookup.query.filter_by(src_field_id=field.id).count() == 0:
+            logger.info("Generating coordinate lookup table for field '%s'", field.name)
+            entries = []
+            for loc_id, x, y in get_location_index_map(msg, Location.query.all()):
+                lookup_entry = CoordinateLookup()
+                lookup_entry.src_field_id = field.id
+                lookup_entry.location_id = loc_id
+                lookup_entry.x = x
+                lookup_entry.y = y
+                entries.append(lookup_entry)
+
+            db.session.bulk_save_objects(entries)
+            db.session.commit()
+
         band_id = msg.messagenumber
-        opts = make_options(4326, band_id)
+        opts = make_options(0, band_id)
         band = ds.GetRasterBand(band_id)
 
         logger.debug("Processing message '%s'", msg)
 
-        for yoff in range(0, band.YSize, grid_size_y):
-            for xoff in range(0, band.XSize, grid_size_x):
-                raster = DataRaster()
-                raster.source_field_id = field.id
-                raster.time = msg.validDate
+        for yoff in range(band.YSize):
+            raster = DataRaster()
+            raster.source_field_id = field.id
+            raster.run_time = msg.analDate
+            raster.valid_time = msg.validDate
+            raster.row = yoff
 
-                wkb = wkblify_raster_header(opts, ds, 1, (xoff, yoff), grid_size_x, grid_size_y)
-                wkb += wkblify_band_header(opts, band)
-                wkb += wkblify_band(opts, band, 1, xoff, yoff, (grid_size_x, grid_size_y), (grid_size_x, grid_size_y), file_path, band_id)
+            wkb = wkblify_raster_header(opts, ds, 1, (0, yoff), band.XSize, 1)
+            wkb += wkblify_band_header(opts, band)
+            wkb += wkblify_band(opts, band, 1, 0, yoff, (band.XSize, 1), (band.XSize, 1), file_path, band_id)
 
-                raster.rast = wkb.decode('ascii')
+            raster.rast = wkb.decode('ascii')
 
-                db.session.add(raster)
+            db.session.add(raster)
 
         db.session.commit()
 
