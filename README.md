@@ -9,16 +9,16 @@ information, and detailed analysis sites like
 [PSU's e-wall](http://mp1.met.psu.edu/~fxg1/ewall.html),
 and [pivotal weather](http://www.pivotalweather.com/).
 
-It will offer an API to get point data for any given location (ZIP code, lat/lon, etc.), which will return data from
+It will offer an API to get point data for any given location (ZIP code, lat/lon, etc.), which will return metrics from
 all kinds of sources (models like the HRRR, GFS, NAM, etc. as well as observational data like RADAR, CWOP, and soundings).
 The primary use of the API is the main site, which gives a high-level overview of current data and a forecast (for day-to-day use),
 but also shows the varience in forecast data, with a way to "dig down" to the raw source data.
 
 For instance, the website may show a normal 5 day forecast, but each data point (temp, dew point, conditions, etc.) will
 be clickable to reveal which each source predicts that data point will be. For example, tomorrows temperature may just be
-shown as 50degF, but the metric is clickable to reveal that the HRRR predicts that the temperature will be 49, the GFS says 51, and the NAM says 50.
+shown as 50degF, but that temperature metric is clickable to reveal that the HRRR predicts that the temperature will be 49, the GFS says 51, and the NAM says 50.
 Each model run is preserved as well (i.e. not just the most recent model run is kept), so users can see trends over time.
-Again, in the context of the prior example, the most recent HRRR may say 49, but the HRRR from 2 hours ago might say 50, and the HRRR from 12 hours ago might say 47.
+In the context of the prior example, the most recent HRRR may say the temp at 12Z is 49, but the HRRR from 2 hours ago might say it's 50, and the HRRR from 12 hours ago might say it's 47.
 
 
 ## Why?
