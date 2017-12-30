@@ -2,11 +2,17 @@
 from flask import Blueprint, abort, jsonify, request
 from datetime import datetime, timedelta
 from geoalchemy2 import func as geofunc
-
 import collections
 
 from wx_explore.common import utils
-from wx_explore.web.data.models import *
+from wx_explore.web.data.models import (
+    Source,
+    SourceField,
+    Location,
+    Metric,
+    DataRaster,
+    CoordinateLookup,
+)
 from wx_explore.web import app, db
 
 

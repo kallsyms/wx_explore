@@ -7,7 +7,7 @@ import numpy
 import pygrib
 import requests
 
-from wx_explore.web.data.models import *
+from wx_explore.web.data.models import SourceField, CoordinateLookup, DataRaster
 from wx_explore.ingest.raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
 from wx_explore.web import db
 

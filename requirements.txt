@@ -5,3 +5,7 @@ flask_bootstrap
 geoalchemy2
 shapely
 gdal
+pygrib
+numpy
+scipy
+requests

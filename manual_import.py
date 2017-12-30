@@ -1,10 +1,11 @@
+#!/usr/bin/env python3
 import sys
 import logging
 import tempfile
 import os
 
-from wx_explore.ingest.ingest_common import *
-from wx_explore.web.data.models import *
+from wx_explore.ingest.ingest_common import get_grib_ranges, ingest_grib_file
+from wx_explore.web.data.models import Source
 
 
 logging.basicConfig(level=logging.DEBUG,

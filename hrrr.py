@@ -1,12 +1,11 @@
 #!/usr/bin/env python3
 from datetime import datetime, timedelta
 import tempfile
-import shutil
 import os
 import logging
 
 from wx_explore.ingest.ingest_common import reduce_grib, ingest_grib_file
-from wx_explore.web.data.models import *
+from wx_explore.web.data.models import Source
 
 
 def ingest_hrrr(time_min=0, time_max=18, base_time_offset=0):
