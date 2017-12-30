@@ -1,43 +1,19 @@
 #!/usr/bin/env python3
-from flask import Flask, render_template, abort, jsonify, request
-from flask_sqlalchemy import SQLAlchemy
-from flask_bootstrap import Bootstrap
+from flask import Blueprint, abort, jsonify, request
 from datetime import datetime, timedelta
-from sqlalchemy import cast
-from geoalchemy2 import func as geofunc, Geometry
+from geoalchemy2 import func as geofunc
 
 import collections
-import logging
 
-import config
-import utils
-
-
-app = Flask(__name__)
-app.config.from_object(config.DevConfig)
-
-Bootstrap(app)
-
-db = SQLAlchemy(app)
-
-from models import *
+from wx_explore.common import utils
+from wx_explore.web.data.models import *
+from wx_explore.web import app, db
 
 
-@app.route('/sources')
-def sources():
-    return render_template('sources.html', sources=Source.query.all())
+api = Blueprint('api', __name__, url_prefix='/api')
 
 
-@app.route('/raw/<int:loc_id>')
-def raw_data(loc_id):
-    location = Location.query.get(loc_id)
-    if location:
-        return render_template('raw_data.html', location=location, datas=location.data_points)
-    else:
-        abort(404)
-
-
-@app.route('/api/sources')
+@api.route('/sources')
 def get_sources():
     res = []
 
@@ -49,7 +25,7 @@ def get_sources():
     return jsonify(res)
 
 
-@app.route('/api/source/<int:src_id>')
+@api.route('/source/<int:src_id>')
 def get_source(src_id):
     source = Source.query.get(src_id)
 
@@ -62,19 +38,19 @@ def get_source(src_id):
     return jsonify(j)
 
 
-@app.route('/api/metrics')
+@api.route('/metrics')
 def get_metrics():
     return jsonify([m.serialize() for m in Metric.query.all()])
 
 
-@app.route('/api/location/search')
+@api.route('/location/search')
 def get_location_from_query():
     search = request.args.get('q')
 
     if search is None or len(search) < 3:
         abort(400)
 
-    search = search.replace('_', '').replace('%', '')
+    search = search.replace('_', '\_').replace('%', '%%')
     search += '%'
 
     query = Location.query.filter(Location.name.ilike(search)).limit(10)
@@ -82,7 +58,7 @@ def get_location_from_query():
     return jsonify([l.serialize() for l in query.all()])
 
 
-@app.route('/api/location/by_coords')
+@api.route('/location/by_coords')
 def get_location_from_coords():
     lat = request.args.get('lat')
     lon = request.args.get('lon')
@@ -102,7 +78,7 @@ def get_location_from_coords():
     return jsonify(query.first().serialize())
 
 
-@app.route('/api/location/<int:loc_id>')
+@api.route('/location/<int:loc_id>')
 def get_location(loc_id):
     location = Location.query.get(loc_id)
 
@@ -112,7 +88,7 @@ def get_location(loc_id):
     return jsonify(location.serialize())
 
 
-@app.route('/api/location/<int:loc_id>/wx')
+@api.route('/location/<int:loc_id>/wx')
 def wx_for_location(loc_id):
     location = Location.query.get(loc_id)
 
@@ -172,16 +148,16 @@ def wx_for_location(loc_id):
                             .all()
 
     # wx is a dict of unix_time->metrics, where each metric may have multiple values from different sources
-    wx = collections.defaultdict(lambda: collections.defaultdict(list))
+    wx = {
+        'ordered_times': set(),
+        'data': collections.defaultdict(lambda: collections.defaultdict(list)),
+    }
 
     for d in data_points:
         utime = utils.datetime2unix(d.valid_time)
-        wx[utime][d.SourceField.metric.name].append({"value": d.value, "src_field_id": d.SourceField.id, "run_time": utils.datetime2unix(d.run_time)})
+        wx['ordered_times'].add(utime)
+        wx['data'][utime][d.SourceField.metric.name].append({"value": d.value, "src_field_id": d.SourceField.id, "run_time": utils.datetime2unix(d.run_time)})
+
+    wx['ordered_times'] = sorted(wx['ordered_times'])
 
     return jsonify(wx)
-
-
-if __name__ == '__main__':
-    logging.basicConfig()
-    db.create_all()
-    app.run(port=5001)

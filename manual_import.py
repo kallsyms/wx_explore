@@ -3,7 +3,9 @@ import logging
 import tempfile
 import os
 
-from ingest_common import *
+from wx_explore.ingest.ingest_common import *
+from wx_explore.web.data.models import *
+
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',

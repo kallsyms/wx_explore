@@ -1,7 +1,8 @@
 #!/usr/bin/env python3
-from app import db
 from geoalchemy2 import Geography, Raster
 from shapely import wkb
+
+from wx_explore.web import db
 
 
 class Source(db.Model):

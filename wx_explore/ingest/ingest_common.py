@@ -2,13 +2,14 @@
 from scipy.spatial import cKDTree
 import gdal
 import gdalconst
+import logging
 import numpy
 import pygrib
-import logging
+import requests
 
-from models import *
-from raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
-from app import db
+from wx_explore.web.data.models import *
+from wx_explore.ingest.raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
+from wx_explore.web import db
 
 logger = logging.getLogger('ingest_common')
 
@@ -53,7 +54,7 @@ def ingest_grib_file(file_path, source):
         if field is None:
             continue
 
-        logger.debug("Processing field '%s'", field.grib_name)
+        logger.info("Processing message '%s' (field '%s')", msg, field.grib_name)
 
         # Ensure the zipcode->coordinate lookup table has been created for this field
         if CoordinateLookup.query.filter_by(src_field_id=field.id).count() == 0:
@@ -73,8 +74,6 @@ def ingest_grib_file(file_path, source):
         band_id = msg.messagenumber
         opts = make_options(0, band_id)
         band = ds.GetRasterBand(band_id)
-
-        logger.debug("Processing message '%s'", msg)
 
         for yoff in range(band.YSize):
             raster = DataRaster()
@@ -126,3 +125,37 @@ def get_grib_ranges(idxs, source):
     return offsets
 
 
+def reduce_grib(grib_url, idx_url, source):
+    for _ in range(10):
+        try:
+            idxs = requests.get(idx_url).text
+            break
+        except KeyboardInterrupt:
+            raise
+        except:
+            continue
+    else:
+        raise Exception("Unable to download idx file!")
+
+    offsets = get_grib_ranges(idxs, source)
+
+    out = b''
+
+    for offset, length in offsets:
+        start = offset
+        end = offset + length - 1
+
+        for _ in range(3):
+            try:
+                out += requests.get(grib_url, headers={
+                    "Range": f"bytes={start}-{end}"
+                }).content
+                break
+            except KeyboardInterrupt:
+                raise
+            except:
+                continue
+        else:
+            logger.warning(f"Couldn't get grib range from {start} to {end}. Continuing anyways...")
+
+    return out
