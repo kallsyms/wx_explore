@@ -9,3 +9,4 @@ pygrib
 numpy
 scipy
 requests
+shapely

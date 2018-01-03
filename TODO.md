@@ -3,14 +3,19 @@
 * Figure out best representation to return metric data in API
 * Transformers on ingest to standardize units
 * More data sources
-    * ~HRRR~
-    * GFS
-    * NAM
-    * CWOP
+    * ~[HRRR](http://www.nco.ncep.noaa.gov/pmb/products/hrrr/)~
+    * [RAP](http://www.nco.ncep.noaa.gov/pmb/products/rap/)
+    * [GFS](http://www.nco.ncep.noaa.gov/pmb/products/gfs/)
+    * [NAM](http://www.nco.ncep.noaa.gov/pmb/products/nam/)
+    * [SREF](http://www.nco.ncep.noaa.gov/pmb/products/sref/)
+    * [RTMA](http://www.nco.ncep.noaa.gov/pmb/products/rtma/)
+    * [CMCE](http://www.nco.ncep.noaa.gov/pmb/products/cmcens/)
+    * [UKMET](http://www.nco.ncep.noaa.gov/pmb/products/ukmet/)
+    * METAR (CWOP?)
     * NEXRAD
     * Satellite
     * Soundings
-    * Anything else from noaaport
+    * Anything else from noaaport?
 
 * Caching
 * Maps
@@ -18,6 +23,7 @@
         * Recombining in DB with `ST_Union` seems to be too slow to use this for real-time requests (>5sec for a HRRR temperature grid)
         * We would probably be pre-computing the maps for each band anyways...
 * Do we keep the raw grib files for people to download?
+    * Probably...
 * Parallelize ingest (thread to download all gribs, threads to ingest each)
 
 # Stage 2: WWW

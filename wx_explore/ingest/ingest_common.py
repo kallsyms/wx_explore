@@ -1,5 +1,6 @@
 #!/usr/bin/env python3
 from scipy.spatial import cKDTree
+from shapely import wkb
 import gdal
 import gdalconst
 import logging
@@ -7,7 +8,7 @@ import numpy
 import pygrib
 import requests
 
-from wx_explore.web.data.models import SourceField, CoordinateLookup, DataRaster
+from wx_explore.web.data.models import SourceField, CoordinateLookup, DataRaster, Location
 from wx_explore.ingest.raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
 from wx_explore.web import db
 
@@ -15,12 +16,12 @@ logger = logging.getLogger('ingest_common')
 
 
 def get_location_index_map(grib_message, locations):
-    '''
+    """
     Generates grid coordinates for each location in locations from the given GRIB message
     :param grib_message: The GRIB message for which the coordinates should be generated
     :param locations: List of locations for which indexes should be generated
     :return: loc_id,x,y tuples for each given input location
-    '''
+    """
     lat, lon = grib_message.latlons()
     shape = grib_message.values.shape
     tree = cKDTree(numpy.dstack([lon.ravel(), lat.ravel()])[0])
@@ -34,12 +35,12 @@ def get_location_index_map(grib_message, locations):
 
 
 def ingest_grib_file(file_path, source):
-    '''
+    """
     Ingests a given GRIB file into the backend
     :param file_path: Path to the GRIB file
     :param source: Source object which denotes which source this data is from
     :return: None
-    '''
+    """
     logger.info("Processing GRIB file '%s'", file_path)
 
     grib = pygrib.open(file_path)
@@ -82,11 +83,11 @@ def ingest_grib_file(file_path, source):
             raster.valid_time = msg.validDate
             raster.row = yoff
 
-            wkb = wkblify_raster_header(opts, ds, 1, (0, yoff), band.XSize, 1)
-            wkb += wkblify_band_header(opts, band)
-            wkb += wkblify_band(opts, band, 1, 0, yoff, (band.XSize, 1), (band.XSize, 1), file_path, band_id)
+            wkb_bytes = wkblify_raster_header(opts, ds, 1, (0, yoff), band.XSize, 1)
+            wkb_bytes += wkblify_band_header(opts, band)
+            wkb_bytes += wkblify_band(opts, band, 1, 0, yoff, (band.XSize, 1), (band.XSize, 1), file_path, band_id)
 
-            raster.rast = wkb.decode('ascii')
+            raster.rast = wkb_bytes.decode('ascii')
 
             db.session.add(raster)
 
@@ -94,13 +95,13 @@ def ingest_grib_file(file_path, source):
 
 
 def get_grib_ranges(idxs, source):
-    '''
+    """
     Given an index file, return a list of tuples that denote the start and length of each chunk
     of the GRIB that should be downloaded
     :param idxs: Index file as a string
     :param source: Source that the grib is from
     :return: List of (start, length)
-    '''
+    """
     offsets = []
     last = None
     for line in idxs.split('\n'):

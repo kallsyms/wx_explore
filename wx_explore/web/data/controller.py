@@ -33,10 +33,7 @@ def get_sources():
 
 @api.route('/source/<int:src_id>')
 def get_source(src_id):
-    source = Source.query.get(src_id)
-
-    if not source:
-        abort(404)
+    source = Source.query.get_or_404(src_id)
 
     j = source.serialize()
     j['fields'] = [f.serialize() for f in source.fields]
@@ -53,10 +50,11 @@ def get_metrics():
 def get_location_from_query():
     search = request.args.get('q')
 
-    if search is None or len(search) < 3:
+    if search is None or len(search) < 2:
         abort(400)
 
-    search = search.replace('_', '\_').replace('%', '%%')
+    # Fixes basic weird results that could come from users entering '\'s, '%'s, or '_'s
+    search = search.replace('\\', '\\\\').replace('_', '\_').replace('%', '\%')
     search += '%'
 
     query = Location.query.filter(Location.name.ilike(search)).limit(10)
@@ -86,20 +84,13 @@ def get_location_from_coords():
 
 @api.route('/location/<int:loc_id>')
 def get_location(loc_id):
-    location = Location.query.get(loc_id)
-
-    if location is None:
-        abort(404)
-
+    location = Location.query.get_or_404(loc_id)
     return jsonify(location.serialize())
 
 
 @api.route('/location/<int:loc_id>/wx')
 def wx_for_location(loc_id):
-    location = Location.query.get(loc_id)
-
-    if location is None:
-        abort(404)
+    location = Location.query.get_or_404(loc_id)
 
     requested_metrics = request.args.get('metrics')
 
@@ -141,7 +132,7 @@ def wx_for_location(loc_id):
                 end = now + timedelta(days=7)
 
     # Get all (time, value, metric)s for the time range and metrics desired
-    #                this is 1 because each row's `rast` is only 1 row of data, not the entire 2d grid ---v
+    #                                           this is 1 because each row's `rast` is only 1 row of data, not the entire 2d grid ---v
     data_points = db.session.query(DataRaster.run_time, DataRaster.valid_time, geofunc.ST_Value(DataRaster.rast, CoordinateLookup.x, 1).label("value"),
                                    SourceField,
                                    CoordinateLookup)\
@@ -162,7 +153,11 @@ def wx_for_location(loc_id):
     for d in data_points:
         utime = utils.datetime2unix(d.valid_time)
         wx['ordered_times'].add(utime)
-        wx['data'][utime][d.SourceField.metric.name].append({"value": d.value, "src_field_id": d.SourceField.id, "run_time": utils.datetime2unix(d.run_time)})
+        wx['data'][utime][d.SourceField.metric.name].append({
+            "value": d.value,
+            "src_field_id": d.SourceField.id,
+            "run_time": utils.datetime2unix(d.run_time)
+        })
 
     wx['ordered_times'] = sorted(wx['ordered_times'])
 
