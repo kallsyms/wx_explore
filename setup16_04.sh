@@ -21,6 +21,6 @@ EOF
 
 source ~/.bash_profile
 
-pip install --global-option=build_ext --global-option="-I/usr/include/gdal" GDAL==2.1.3
+pip install --global-option=build_ext --global-option="-I/usr/include/gdal" GDAL==2.1.0
 pip install numpy pyproj
 pip install -r requirements.txt
