@@ -59,7 +59,7 @@ def ingest_grib_file(file_path, source):
 
         # Ensure the zipcode->coordinate lookup table has been created for this field
         if CoordinateLookup.query.filter_by(src_field_id=field.id).count() == 0:
-            logger.info("Generating coordinate lookup table for field '%s'", field.name)
+            logger.info("Generating coordinate lookup table for field '%s'", field.grib_name)
             entries = []
             for loc_id, x, y in get_location_index_map(msg, Location.query.all()):
                 lookup_entry = CoordinateLookup()
