@@ -28,7 +28,7 @@ pyenv install 3.6.4
 pyenv virtualenv 3.6.4 wx_explore
 pyenv global wx_explore
 
-pip install --global-option=build_ext --global-option="-I/usr/include/gdal" GDAL==2.1.0
+pip install --global-option=build_ext --global-option="-I/usr/include/gdal" GDAL==2.1.3
 pip install numpy pyproj
 pip install -r requirements.txt
 
