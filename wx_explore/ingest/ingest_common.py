@@ -8,8 +8,15 @@ import numpy
 import pygrib
 import requests
 
-from wx_explore.web.data.models import SourceField, CoordinateLookup, DataRaster, Location
+from wx_explore.common.utils import datetime2unix
 from wx_explore.ingest.raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
+from wx_explore.web.data.models import (
+    SourceField,
+    CoordinateLookup,
+    DataRaster,
+    Location,
+    LocationTimeData,
+)
 from wx_explore.web import db
 
 logger = logging.getLogger('ingest_common')
@@ -56,11 +63,15 @@ def ingest_grib_file(file_path, source):
 
         logger.info("Processing message '%s' (field '%s')", msg, field.grib_name)
 
+        # Cache the loc_id -> (y,x) map locally to avoid tons of DB hits
+        location_xy_map = {}
+
         # Ensure the zipcode->coordinate lookup table has been created for this field
         if CoordinateLookup.query.filter_by(src_field_id=field.id).count() == 0:
             logger.info("Generating coordinate lookup table for field '%s'", field.grib_name)
             entries = []
             for loc_id, x, y in get_location_index_map(msg, Location.query.all()):
+                # Create the DB object
                 lookup_entry = CoordinateLookup()
                 lookup_entry.src_field_id = field.id
                 lookup_entry.location_id = loc_id
@@ -68,20 +79,27 @@ def ingest_grib_file(file_path, source):
                 lookup_entry.y = y
                 entries.append(lookup_entry)
 
+                # And cache locally
+                location_xy_map[loc_id] = (y, x)
+
             db.session.bulk_save_objects(entries)
             db.session.commit()
+            logger.info("Done generating coordinate lookup table")
+        else:
+            for entry in CoordinateLookup.query.all():
+                location_xy_map[entry.location_id] = (entry.y, entry.x)
 
         band_id = msg.messagenumber
         opts = make_options(0, band_id)
         band = ds.GetRasterBand(band_id)
 
         for yoff in range(band.YSize):
-            raster = DataRaster()
-            raster.source_field_id = field.id
-            raster.run_time = msg.analDate
-            raster.valid_time = msg.validDate
-            raster.row = yoff
-
+            raster = DataRaster(
+                source_field_id=field.id,
+                run_time=msg.analDate,
+                valid_time=msg.validDate,
+                row=yoff,
+            )
             wkb_bytes = wkblify_raster_header(opts, ds, 1, (0, yoff), band.XSize, 1)
             wkb_bytes += wkblify_band_header(opts, band)
             wkb_bytes += wkblify_band(opts, band, 1, 0, yoff, (band.XSize, 1), (band.XSize, 1), file_path, band_id)
@@ -89,6 +107,24 @@ def ingest_grib_file(file_path, source):
             raster.rast = wkb_bytes.decode('ascii')
 
             db.session.add(raster)
+
+        db.session.commit()
+
+        for loc_id, coords in location_xy_map.items():
+            ltd = LocationTimeData.query.filter_by(location_id=loc_id, valid_time=msg.validDate).first()
+            if not ltd:
+                ltd = LocationTimeData(
+                    location_id=loc_id,
+                    valid_time=msg.validDate,
+                    values=[],
+                )
+                db.session.add(ltd)
+
+            ltd.values.append({
+                "src_field_id": field.id,
+                "run_time": datetime2unix(msg.analDate),
+                "value": float(msg.values[coords]),
+            })
 
         db.session.commit()
 

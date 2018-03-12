@@ -64,7 +64,7 @@ class SourceField(db.Model):
     metric_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
 
     source = db.relationship('Source', backref='fields')
-    metric = db.relationship('Metric')
+    metric = db.relationship('Metric', backref='fields')
 
     def serialize(self):
         return {
@@ -123,15 +123,27 @@ class CoordinateLookup(db.Model):
 
 class DataRaster(db.Model):
     """
-    Table that holds the actual raster data.
+    Table that holds the "raw" raster data.
     """
     source_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
     valid_time = db.Column(db.DateTime, primary_key=True)
     run_time = db.Column(db.DateTime, primary_key=True)
     row = db.Column(db.Integer, primary_key=True)
-    rast = db.Column(Raster)  # GiST index automatically created for us
+    rast = db.Column(Raster)
 
     src_field = db.relationship('SourceField')
 
     def __repr__(self):
         return f"<DataRaster source_field_id={self.source_field_id} valid_time={self.valid_time} run_time={self.run_time} row={self.row}>"
+
+
+class LocationTimeData(db.Model):
+    """
+    Table that holds denormalized data for a given location and time.
+
+    The data stored is a json list of objects, each of which have the SourceField they come from,
+    the run time of the model, and the actual field value.
+    """
+    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
+    valid_time = db.Column(db.DateTime, primary_key=True)
+    values = db.Column(db.JSON)

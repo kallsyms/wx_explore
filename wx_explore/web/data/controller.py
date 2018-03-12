@@ -1,17 +1,13 @@
 #!/usr/bin/env python3
 from flask import Blueprint, abort, jsonify, request
 from datetime import datetime, timedelta
-from geoalchemy2 import func as geofunc
-import collections
 
-from wx_explore.common import utils
+from wx_explore.common.utils import datetime2unix
 from wx_explore.web.data.models import (
     Source,
-    SourceField,
     Location,
     Metric,
-    DataRaster,
-    CoordinateLookup,
+    LocationTimeData,
 )
 from wx_explore.web import app, db
 
@@ -131,34 +127,27 @@ def wx_for_location(loc_id):
             if end > now + timedelta(days=7):
                 end = now + timedelta(days=7)
 
-    # Get all (time, value, metric)s for the time range and metrics desired
-    #                                           this is 1 because each row's `rast` is only 1 row of data, not the entire 2d grid ---v
-    data_points = db.session.query(DataRaster.run_time, DataRaster.valid_time, geofunc.ST_Value(DataRaster.rast, CoordinateLookup.x, 1).label("value"),
-                                   SourceField,
-                                   CoordinateLookup)\
-                            .filter(DataRaster.valid_time >= start, DataRaster.valid_time < end)\
-                            .filter(DataRaster.row == CoordinateLookup.y)\
-                            .filter(CoordinateLookup.location_id == location.id) \
-                            .filter(CoordinateLookup.src_field_id == SourceField.id) \
-                            .filter(SourceField.id == DataRaster.source_field_id) \
-                            .filter(SourceField.metric_id.in_(m.id for m in metrics))\
-                            .all()
+    # Get all data points for the location and times specified
+    ltds = LocationTimeData.query.filter(
+        LocationTimeData.valid_time >= start,
+        LocationTimeData.valid_time < end,
+        LocationTimeData.location_id == location.id,
+    ).all()
 
-    # wx is a dict of unix_time->metrics, where each metric may have multiple values from different sources
+    # wx['data'] is a dict of unix_time->metrics, where each metric may have multiple values from different sources
     wx = {
-        'ordered_times': set(),
-        'data': collections.defaultdict(lambda: collections.defaultdict(list)),
+        'ordered_times': sorted(datetime2unix(ltd.valid_time) for ltd in ltds),
+        'data': {datetime2unix(ltd.valid_time): [] for ltd in ltds},
     }
 
-    for d in data_points:
-        utime = utils.datetime2unix(d.valid_time)
-        wx['ordered_times'].add(utime)
-        wx['data'][utime][d.SourceField.metric.name].append({
-            "value": d.value,
-            "src_field_id": d.SourceField.id,
-            "run_time": utils.datetime2unix(d.run_time)
-        })
+    requested_source_field_ids = set()
+    for metric in metrics:
+        for sf in metric.fields:
+            requested_source_field_ids.add(sf.id)
 
-    wx['ordered_times'] = sorted(wx['ordered_times'])
+    for ltd in ltds:
+        for data_point in ltd.values:
+            if data_point['src_field_id'] in requested_source_field_ids:
+                wx['data'][datetime2unix(ltd.valid_time)].append(data_point)
 
     return jsonify(wx)
