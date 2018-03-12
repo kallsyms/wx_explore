@@ -27,10 +27,9 @@ def get_location_index_map(grib_message, locations):
     tree = cKDTree(numpy.dstack([lon.ravel(), lat.ravel()])[0])
     for location in locations:
         coords = wkb.loads(bytes(location.location.data))
-        # TODO: make sure all of these coords are normal degrees, not a weird projection
         idx = tree.query([coords.x, coords.y])[1]
         x = idx % shape[1]
-        y = idx / shape[1]
+        y = idx // shape[1]
         yield (location.id, x, y)
 
 
