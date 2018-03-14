@@ -26,14 +26,13 @@ def ingest_hrrr(time_min=0, time_max=18, base_time_offset=0):
 
     tmp_fn = tempfile.mkstemp()[1]
 
-    for url, idx_url in zip(urls, idx_urls):
-        logging.info(f"Reducing and downloading {url}")
-
-        with open(tmp_fn, 'wb') as reduced:
+    with open(tmp_fn, 'wb') as reduced:
+        for url, idx_url in zip(urls, idx_urls):
+            logging.info(f"Downloading and reducing {url}")
             reduced.write(reduce_grib(url, idx_url, hrrr_source))
 
-        logging.info(f"Ingesting {url}")
-        ingest_grib_file(tmp_fn, hrrr_source)
+    logging.info("Ingesting all")
+    ingest_grib_file(tmp_fn, hrrr_source)
 
     os.remove(tmp_fn)
 

@@ -7,6 +7,7 @@ import logging
 import numpy
 import pygrib
 import requests
+import collections
 
 from wx_explore.common.utils import datetime2unix
 from wx_explore.ingest.raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
@@ -52,6 +53,12 @@ def ingest_grib_file(file_path, source):
     grib = pygrib.open(file_path)
     ds = gdal.Open(file_path, gdalconst.GA_ReadOnly)
 
+    # Cache coordinate lookup tables so they can be reused
+    coordinate_luts = collections.defaultdict(dict)
+
+    # Build up a big array of loc_id -> {valid_time -> [values]}
+    loc_time_values = collections.defaultdict(lambda: collections.defaultdict(list))
+
     for msg in grib:
         field = SourceField.query.filter_by(
             source_id=source.id,
@@ -63,31 +70,31 @@ def ingest_grib_file(file_path, source):
 
         logger.info("Processing message '%s' (field '%s')", msg, field.grib_name)
 
-        # Cache the loc_id -> (y,x) map locally to avoid tons of DB hits
-        location_xy_map = {}
+        if field.id not in coordinate_luts:
+            # Ensure the zipcode->coordinate lookup table has been created in-DB for this field
+            if CoordinateLookup.query.filter_by(src_field_id=field.id).count() == 0:
+                logger.info("Generating coordinate lookup table for field '%s'", field.grib_name)
+                entries = []
+                for loc_id, x, y in get_location_index_map(msg, Location.query.all()):
+                    # Create the DB object
+                    lookup_entry = CoordinateLookup()
+                    lookup_entry.src_field_id = field.id
+                    lookup_entry.location_id = loc_id
+                    lookup_entry.x = x
+                    lookup_entry.y = y
+                    entries.append(lookup_entry)
 
-        # Ensure the zipcode->coordinate lookup table has been created for this field
-        if CoordinateLookup.query.filter_by(src_field_id=field.id).count() == 0:
-            logger.info("Generating coordinate lookup table for field '%s'", field.grib_name)
-            entries = []
-            for loc_id, x, y in get_location_index_map(msg, Location.query.all()):
-                # Create the DB object
-                lookup_entry = CoordinateLookup()
-                lookup_entry.src_field_id = field.id
-                lookup_entry.location_id = loc_id
-                lookup_entry.x = x
-                lookup_entry.y = y
-                entries.append(lookup_entry)
+                    # And cache locally
+                    coordinate_luts[field.id][loc_id] = (y, x)
 
-                # And cache locally
-                location_xy_map[loc_id] = (y, x)
+                db.session.bulk_save_objects(entries)
+                db.session.commit()
+            else:
+                # lookup table is in DB, but not cached locally yet
+                for entry in CoordinateLookup.query.all():
+                    coordinate_luts[field.id][entry.location_id] = (entry.y, entry.x)
 
-            db.session.bulk_save_objects(entries)
-            db.session.commit()
-            logger.info("Done generating coordinate lookup table")
-        else:
-            for entry in CoordinateLookup.query.all():
-                location_xy_map[entry.location_id] = (entry.y, entry.x)
+            logger.info("Coordinate lookup table loaded")
 
         band_id = msg.messagenumber
         opts = make_options(0, band_id)
@@ -110,23 +117,44 @@ def ingest_grib_file(file_path, source):
 
         db.session.commit()
 
-        for loc_id, coords in location_xy_map.items():
-            ltd = LocationTimeData.query.filter_by(location_id=loc_id, valid_time=msg.validDate).first()
-            if not ltd:
-                ltd = LocationTimeData(
-                    location_id=loc_id,
-                    valid_time=msg.validDate,
-                    values=[],
-                )
-                db.session.add(ltd)
+        logger.info("Done saving raster data")
 
-            ltd.values.append({
+        grib_data = msg.values
+
+        for loc_id, coords in coordinate_luts[field.id].items():
+            loc_time_values[loc_id][msg.validDate].append({
                 "src_field_id": field.id,
                 "run_time": datetime2unix(msg.analDate),
-                "value": float(msg.values[coords]),
+                "value": float(grib_data[coords]),
             })
 
+    logger.info("Saving denormalized location/time data for all layers")
+
+    # TODO: multi-process lock here so we can ingest multiple things at once and not have update conflicts here
+
+    for loc_id in loc_time_values:
+        # Cache all LocationTimeData's for this location to lower # of DB hits
+        # (otherwise we would be doing num_locations * num_times SELECTs and the same number of updates/inserts)
+
+        # Map of valid_time -> LocationTimeData
+        time_ltd_map = {}
+        for ltd in LocationTimeData.query.filter_by(location_id=loc_id).all():
+            time_ltd_map[ltd.valid_time] = ltd
+
+        for valid_time, vals in loc_time_values[loc_id].items():
+            if valid_time not in time_ltd_map:
+                ltd = LocationTimeData(
+                    location_id=loc_id,
+                    valid_time=valid_time,
+                    values=vals,
+                )
+                db.session.add(ltd)
+            else:
+                time_ltd_map[valid_time].values.extend(vals)
+
         db.session.commit()
+
+    logger.info("Done saving denormalized data")
 
 
 def get_grib_ranges(idxs, source):
