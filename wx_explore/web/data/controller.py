@@ -7,7 +7,7 @@ from wx_explore.web.data.models import (
     Source,
     Location,
     Metric,
-    LocationTimeData,
+    LocationData,
 )
 from wx_explore.web import app, db
 
@@ -127,17 +127,17 @@ def wx_for_location(loc_id):
             if end > now + timedelta(days=7):
                 end = now + timedelta(days=7)
 
-    # Get all data points for the location and times specified
-    ltds = LocationTimeData.query.filter(
-        LocationTimeData.valid_time >= start,
-        LocationTimeData.valid_time < end,
-        LocationTimeData.location_id == location.id,
-    ).all()
+    # Get all data points for the location and times specified.
+    # This is a dictionary mapping str(valid_time) -> list of metric values
+    loc_data = LocationData.query.filter_by(location_id=location.id).first().values
+
+    # Turn the str(int) keys into datetime keys
+    loc_data = {datetime.utcfromtimestamp(int(valid_time)): vals for valid_time, vals in loc_data.items()}
 
     # wx['data'] is a dict of unix_time->metrics, where each metric may have multiple values from different sources
     wx = {
-        'ordered_times': sorted(datetime2unix(ltd.valid_time) for ltd in ltds),
-        'data': {datetime2unix(ltd.valid_time): [] for ltd in ltds},
+        'ordered_times': sorted(datetime2unix(valid_time) for valid_time in loc_data),
+        'data': {datetime2unix(valid_time): [] for valid_time in loc_data},
     }
 
     requested_source_field_ids = set()
@@ -145,9 +145,10 @@ def wx_for_location(loc_id):
         for sf in metric.fields:
             requested_source_field_ids.add(sf.id)
 
-    for ltd in ltds:
-        for data_point in ltd.values:
-            if data_point['src_field_id'] in requested_source_field_ids:
-                wx['data'][datetime2unix(ltd.valid_time)].append(data_point)
+    for valid_time, values in loc_data.items():
+        if start <= valid_time < end:
+            for data_point in values:
+                if data_point['src_field_id'] in requested_source_field_ids:
+                    wx['data'][datetime2unix(valid_time)].append(data_point)
 
     return jsonify(wx)

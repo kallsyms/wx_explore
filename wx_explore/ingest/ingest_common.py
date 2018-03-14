@@ -16,7 +16,7 @@ from wx_explore.web.data.models import (
     CoordinateLookup,
     DataRaster,
     Location,
-    LocationTimeData,
+    LocationData,
 )
 from wx_explore.web import db
 
@@ -41,7 +41,7 @@ def get_location_index_map(grib_message, locations):
         yield (location.id, x, y)
 
 
-def ingest_grib_file(file_path, source):
+def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=True):
     """
     Ingests a given GRIB file into the backend
     :param file_path: Path to the GRIB file
@@ -96,65 +96,64 @@ def ingest_grib_file(file_path, source):
 
             logger.info("Coordinate lookup table loaded")
 
-        band_id = msg.messagenumber
-        opts = make_options(0, band_id)
-        band = ds.GetRasterBand(band_id)
+        if save_rasters:
+            band_id = msg.messagenumber
+            opts = make_options(0, band_id)
+            band = ds.GetRasterBand(band_id)
 
-        for yoff in range(band.YSize):
-            raster = DataRaster(
-                source_field_id=field.id,
-                run_time=msg.analDate,
-                valid_time=msg.validDate,
-                row=yoff,
-            )
-            wkb_bytes = wkblify_raster_header(opts, ds, 1, (0, yoff), band.XSize, 1)
-            wkb_bytes += wkblify_band_header(opts, band)
-            wkb_bytes += wkblify_band(opts, band, 1, 0, yoff, (band.XSize, 1), (band.XSize, 1), file_path, band_id)
-
-            raster.rast = wkb_bytes.decode('ascii')
-
-            db.session.add(raster)
-
-        db.session.commit()
-
-        logger.info("Done saving raster data")
-
-        grib_data = msg.values
-
-        for loc_id, coords in coordinate_luts[field.id].items():
-            loc_time_values[loc_id][msg.validDate].append({
-                "src_field_id": field.id,
-                "run_time": datetime2unix(msg.analDate),
-                "value": float(grib_data[coords]),
-            })
-
-    logger.info("Saving denormalized location/time data for all layers")
-
-    # TODO: multi-process lock here so we can ingest multiple things at once and not have update conflicts here
-
-    for loc_id in loc_time_values:
-        # Cache all LocationTimeData's for this location to lower # of DB hits
-        # (otherwise we would be doing num_locations * num_times SELECTs and the same number of updates/inserts)
-
-        # Map of valid_time -> LocationTimeData
-        time_ltd_map = {}
-        for ltd in LocationTimeData.query.filter_by(location_id=loc_id).all():
-            time_ltd_map[ltd.valid_time] = ltd
-
-        for valid_time, vals in loc_time_values[loc_id].items():
-            if valid_time not in time_ltd_map:
-                ltd = LocationTimeData(
-                    location_id=loc_id,
-                    valid_time=valid_time,
-                    values=vals,
+            for yoff in range(band.YSize):
+                raster = DataRaster(
+                    source_field_id=field.id,
+                    run_time=msg.analDate,
+                    valid_time=msg.validDate,
+                    row=yoff,
                 )
-                db.session.add(ltd)
-            else:
-                time_ltd_map[valid_time].values.extend(vals)
+                wkb_bytes = wkblify_raster_header(opts, ds, 1, (0, yoff), band.XSize, 1)
+                wkb_bytes += wkblify_band_header(opts, band)
+                wkb_bytes += wkblify_band(opts, band, 1, 0, yoff, (band.XSize, 1), (band.XSize, 1), file_path, band_id)
+
+                raster.rast = wkb_bytes.decode('ascii')
+
+                db.session.add(raster)
+
+            db.session.commit()
+
+            logger.info("Done saving raster data")
+
+        if save_denormalized:
+            grib_data = msg.values
+
+            for loc_id, coords in coordinate_luts[field.id].items():
+                loc_time_values[loc_id][msg.validDate].append({
+                    "src_field_id": field.id,
+                    "run_time": datetime2unix(msg.analDate),
+                    "value": float(grib_data[coords]),
+                })
+
+    if save_denormalized:
+        logger.info("Saving denormalized location/time data for all layers")
+
+        # TODO: multi-process lock here so we can ingest multiple things at once and not have update conflicts here
+
+        for loc_id in loc_time_values:
+            loc_data = LocationData.query.filter_by(location_id=loc_id).first()
+            if not loc_data:
+                loc_data = LocationData(
+                    location_id=loc_id,
+                    values={},
+                )
+                db.session.add(loc_data)
+
+            for valid_time in loc_time_values[loc_id]:
+                vt_key = datetime2unix(valid_time)
+                if vt_key in loc_data.values:
+                    loc_data.values[vt_key].extend(loc_time_values[loc_id][valid_time])
+                else:
+                    loc_data.values[vt_key] = loc_time_values[loc_id][valid_time]
 
         db.session.commit()
 
-    logger.info("Done saving denormalized data")
+        logger.info("Done saving denormalized data")
 
 
 def get_grib_ranges(idxs, source):

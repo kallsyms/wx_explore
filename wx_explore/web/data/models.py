@@ -137,13 +137,13 @@ class DataRaster(db.Model):
         return f"<DataRaster source_field_id={self.source_field_id} valid_time={self.valid_time} run_time={self.run_time} row={self.row}>"
 
 
-class LocationTimeData(db.Model):
+class LocationData(db.Model):
     """
-    Table that holds denormalized data for a given location and time.
+    Table that holds denormalized data for a given location.
 
-    The data stored is a json list of objects, each of which have the SourceField they come from,
-    the run time of the model, and the actual field value.
+    The data stored is a JSON dictionary mapping timestamps -> values, which are a
+    list of objects, each have the SourceField they come from, the run time of the model,
+    and the actual field value.
     """
     location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
-    valid_time = db.Column(db.DateTime, primary_key=True)
     values = db.Column(db.JSON)
