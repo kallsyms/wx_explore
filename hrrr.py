@@ -5,7 +5,7 @@ import os
 import logging
 
 from wx_explore.ingest.ingest_common import reduce_grib, ingest_grib_file
-from wx_explore.web.data.models import Source
+from wx_explore.web.data.models import Source, db
 
 
 def ingest_hrrr(time_min=0, time_max=18, base_time_offset=0):
@@ -37,6 +37,8 @@ def ingest_hrrr(time_min=0, time_max=18, base_time_offset=0):
     os.remove(tmp_fn)
 
     hrrr_source.last_updated = datetime.utcnow()
+
+    db.session.commit()
 
 
 if __name__ == "__main__":
