@@ -30,9 +30,9 @@ def get_location_index_map(grib_message, locations):
     :param locations: List of locations for which indexes should be generated
     :return: loc_id,x,y tuples for each given input location
     """
-    lat, lon = grib_message.latlons()
+    lats, lons = grib_message.latlons()
     shape = grib_message.values.shape
-    tree = cKDTree(numpy.dstack([lon.ravel(), lat.ravel()])[0])
+    tree = cKDTree(numpy.dstack([lons.ravel(), lats.ravel()])[0])
     for location in locations:
         coords = wkb.loads(bytes(location.location.data))
         idx = tree.query([coords.x, coords.y])[1]
