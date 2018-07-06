@@ -13,13 +13,20 @@ class Grid(object):
         self.lons = numpy.ravel(lons)
         self.shape = shape
 
+    def __repr__(self):
+        return f"<Grid shape={self.shape}>"
+
     @property
     def lats_lons(self):
         return numpy.array([self.lats, self.lons])
 
     @property
+    def num_pairs(self):
+        return len(self.lats)  # since lats and lons are stored unravelled, the length of either is how many pairs there are
+
+    @property
     def pairs(self):
-        return numpy.dstack([self.lats, self.lons])
+        return numpy.dstack([self.lats, self.lons])[0]
 
     @staticmethod
     def from_unique_arrays(lats, lons):
@@ -67,7 +74,7 @@ class GriddedField(object):
         if type(idxs) is int:  # if k=1, query returns a single int. Make it a list for the comprehension below
             idxs = [idxs]
 
-        return [(idx // self.shape[1], idx % self.shape[1]) for idx in idxs]
+        return numpy.array([(idx // self.shape[1], idx % self.shape[1]) for idx in idxs])
 
     def nearest_point(self, lat, lon):
         """
@@ -75,19 +82,19 @@ class GriddedField(object):
         """
         return self.k_nearest_points([(lat, lon)], k=1)[0]
 
-    def resample_to_grid(self, grid):
+    def resample_to_grid(self, dst_grid):
         """
         Resample to a standard grid
         """
-        grid_idxs = self.k_nearest_points(grid.pairs, k=1)
+        grid_idxs = self.k_nearest_points(dst_grid.pairs, k=1)
         # indexing expects [[x1, x2, x3], [y1, y2, y3]] so transpose [[x1, y1], [x2, y2]] to the expected form
         grid_idxs = grid_idxs.transpose()
         grid_vals = self.values[grid_idxs[0], grid_idxs[1]]
-        return GriddedField(grid_vals, grid)
+        return GriddedField(grid_vals, dst_grid)
 
-    def zoom(self, grid):
-        zoomed_values = scipy.ndimage.zoom(self.values, (len(grid.lats)/self.shape[0], len(grid.lons)/self.shape[1]))
-        return GriddedField(zoomed_values, grid)
+    def zoom(self, dst_grid):
+        zoomed_values = scipy.ndimage.zoom(self.values, (dst_grid.shape[0]/self.shape[0], dst_grid.shape[1]/self.shape[1]))
+        return GriddedField(zoomed_values, dst_grid)
 
 
 class WindSkewProjector(object):
@@ -113,6 +120,8 @@ class WindSkewProjector(object):
          [(1, 0), (1, 0), (1, 1)],
          [(2, 0), (2, 0), (2, 1)]]
 
+        (but in the shape of grid.lats_lons - i.e. all lat idxs, then all lon idxs)
+
         In that case, the longitudinal index (the second one) has been shifted back by 1 for each index pair.
 
         Then step() interpolates these and produces a new .values array, where in this case, all values have shifted
@@ -121,40 +130,43 @@ class WindSkewProjector(object):
         earth_radius = 6378 * 1000
         m_per_deg = 2*numpy.pi*earth_radius/360  # TODO: This should really be (earth_radius+height)
 
-        coord_pairs = self.target_field.get_coord_pairs()
+        # new_idxs is all lat indexes, then all lon indexes (like grid.lats_lons)
+        new_idxs = numpy.empty([2, self.target_field.grid.num_pairs], dtype=numpy.int32)
 
-        new_idxs = numpy.empty(coord_pairs.shape)
-
-        for idx,(lat,_) in enumerate(coord_pairs):
-            lon_idx = idx % self.target_field.shape[1]
-            lat_idx = idx // self.target_field.shape[1]
-
+        # For each unique latitude
+        for idx, lat in enumerate(self.target_field.grid.lats[::self.target_field.shape[1]]):
             # First, convert the m/s wind fields into deg/s
             # U is parallel with the equator, so latitude must be taken into account
-            u_wind_ms = self.u_wind_field.values[lat_idx, lon_idx]/m_per_deg * numpy.cos(numpy.radians(lat))
-            v_wind_ms = self.v_wind_field.values[lat_idx, lon_idx]/m_per_deg
+            u_wind_ms = self.u_wind_field.values[idx]/m_per_deg * numpy.cos(numpy.radians(lat))
+            v_wind_ms = self.v_wind_field.values[idx]/m_per_deg
 
             # Multiply by duration
             u_wind = u_wind_ms * step_duration
-            v_wind = u_wind_ms * step_duration
+            v_wind = v_wind_ms * step_duration
 
-            new_lon_idx -= u_wind
-            new_lat_idx -= v_wind
+            # Then _subtract_ the grid offset due to wind. Subtract because we're trying to
+            # find where each index will get its next value from, not where a value is going to
+            new_lon_idx = numpy.arange(0, self.target_field.shape[1]) - u_wind
+            new_lat_idx = idx - v_wind
 
-            new_lon_idx = max(0, min(self.target_field.shape[1], new_lon_idx))
-            new_lat_idx = max(0, min(self.target_field.shape[0], new_lat_idx))
+            # Clamp it to be in a valid range so we don't wrap around or go oob
+            new_lon_idx = numpy.clip(new_lon_idx, 0, self.target_field.shape[1])
+            new_lat_idx = numpy.clip(new_lat_idx, 0, self.target_field.shape[0])
 
-            new_idxs[idx] = [new_lat_idx, new_lon_idx]
+            new_idxs[0][idx*self.target_field.shape[1] : (idx+1)*self.target_field.shape[1]] = new_lat_idx
+            new_idxs[1][idx*self.target_field.shape[1] : (idx+1)*self.target_field.shape[1]] = new_lon_idx
 
         return new_idxs
 
     def step(self, duration):
         wind_offset_coords = self._compute_new_indexes(duration)
-        self.values = scipy.ndimage.map_coordinates(self.values, wind_offset_coords)
+        self.values = scipy.ndimage.map_coordinates(self.values, wind_offset_coords).reshape(self.target_field.grid.shape)
         return self.values
+
 
 rad_ds = Dataset('/Users/nickgregory/Downloads/nc-ignore/wx/rta_testing/n0q_comp.nc')
 rad_lats, rad_lons, rad_data = (rad_ds.variables.get(k)[...] for k in ('lat', 'lon', 'composite_n0q'))
+rad_data.set_fill_value(-40)
 rad = GriddedField(rad_data, Grid.from_unique_arrays(rad_lats, rad_lons))
 print("Loaded radar composite")
 
@@ -179,7 +191,7 @@ print("Zoomed U wind")
 v_wind_zoomed = v_wind_resampled.zoom(rad.grid)
 print("Zoomed V wind")
 
-STEP_DURATION = 60 # seconds
+STEP_DURATION = 60  # seconds
 projector = WindSkewProjector(rad, u_wind_zoomed, v_wind_zoomed)
 for i in range(15):
     projector.step(STEP_DURATION)
