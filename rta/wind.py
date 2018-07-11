@@ -1,8 +1,13 @@
 from netCDF4 import Dataset
 from scipy.spatial import cKDTree
+from PIL import Image
+import copy
+import matplotlib
+matplotlib.use('TkAgg')
+import numpy
+import pyart.graph.cm  # Just for the NWSRef colormap
 import pygrib
 import scipy.ndimage
-import numpy
 
 # Basically a singleton that all GriddedFields can use to share KDTrees
 _KD_TREE_CACHE = {}
@@ -28,17 +33,19 @@ class Grid(object):
     def pairs(self):
         return numpy.dstack([self.lats, self.lons])[0]
 
-    @staticmethod
-    def from_unique_arrays(lats, lons):
+class RegularGrid(Grid):
+    def __init__(self, lats, lons, lat_step=None, lon_step=None):
         all_lats = numpy.repeat(lats, len(lons))
         all_lons = numpy.tile(lons, len(lats))
-        return Grid(all_lats, all_lons, (len(lats), len(lons)))
+        super().__init__(all_lats, all_lons, (len(lats), len(lons)))
+        self.lat_step = lat_step or round(lats[1] - lats[0], 5)
+        self.lon_step = lon_step or round(lons[1] - lons[0], 5)
 
     @staticmethod
     def from_ranges(lat_min, lat_max, lat_step, lon_min, lon_max, lon_step):
         lats = numpy.arange(lat_min, lat_max, lat_step)
         lons = numpy.arange(lon_min, lon_max, lon_step)
-        return Grid.from_unique_arrays(lats, lons)
+        return RegularGrid(lats, lons, lat_step, lon_step)
 
 
 class GriddedField(object):
@@ -96,23 +103,36 @@ class GriddedField(object):
         zoomed_values = scipy.ndimage.zoom(self.values, (dst_grid.shape[0]/self.shape[0], dst_grid.shape[1]/self.shape[1]))
         return GriddedField(zoomed_values, dst_grid)
 
+    def render(self, file_path, colormap=matplotlib.cm.gist_ncar):
+        # N.B. This must be an int dtype otherwise colormap thinks this is between 0 and 1
+        # But int8 doesn't work???
+        vals = numpy.int16(self.values)
+        cm = copy.copy(colormap)
+        cm.set_under(alpha=0)
+        img = Image.fromarray(numpy.uint8(cm(vals)*255), 'RGBA')
+        img.save(file_path)
+
 
 class WindSkewProjector(object):
-    def __init__(self, target_field, u_wind_field, v_wind_field):
+    def __init__(self, target_field, u_wind_field, v_wind_field, step_duration):
         self.target_field = target_field
         self.u_wind_field = u_wind_field
         self.v_wind_field = v_wind_field
+        self.step_duration = step_duration
 
         if not (self.target_field.shape == self.u_wind_field.shape == self.v_wind_field.shape):
             raise ValueError("All fields must have the same shape")
 
+        self.grid = self.target_field.grid
+
         # Our starting array is the target
         self.values = self.target_field.values
+        self.coord_map = self._compute_step_indexes()
 
-    def _compute_new_indexes(self, step_duration):
+    def _compute_step_indexes(self):
         """
         For each index, compute the index whose value will be calculated to determine what value this index should hold
-        after this step.
+        after a step.
 
         For example, if our target field is a grid with 0.01deg spacing, the U vector wind field has an intensity of
         0.01deg/minute, there's no V wind, and our step_duration is 60 (seconds) then we'll return
@@ -131,43 +151,46 @@ class WindSkewProjector(object):
         m_per_deg = 2*numpy.pi*earth_radius/360  # TODO: This should really be (earth_radius+height)
 
         # new_idxs is all lat indexes, then all lon indexes (like grid.lats_lons)
-        new_idxs = numpy.empty([2, self.target_field.grid.num_pairs], dtype=numpy.int32)
+        new_idxs = numpy.empty([2, self.grid.num_pairs])
 
         # For each unique latitude
-        for idx, lat in enumerate(self.target_field.grid.lats[::self.target_field.shape[1]]):
+        for idx, lat in enumerate(self.grid.lats[::self.grid.shape[1]]):
             # First, convert the m/s wind fields into deg/s
             # U is parallel with the equator, so latitude must be taken into account
-            u_wind_ms = self.u_wind_field.values[idx]/m_per_deg * numpy.cos(numpy.radians(lat))
-            v_wind_ms = self.v_wind_field.values[idx]/m_per_deg
+            u_wind_dps = self.u_wind_field.values[idx]/m_per_deg * numpy.cos(numpy.radians(lat))
+            v_wind_dps = self.v_wind_field.values[idx]/m_per_deg
 
             # Multiply by duration
-            u_wind = u_wind_ms * step_duration
-            v_wind = v_wind_ms * step_duration
+            u_wind = u_wind_dps * self.step_duration
+            v_wind = v_wind_dps * self.step_duration
+
+            # Then scale by the size of the grid (1 index is not 1 degree, but 1/grid_step degrees)
+            u_wind *= 1/self.grid.lon_step
+            v_wind *= 1/self.grid.lat_step
 
             # Then _subtract_ the grid offset due to wind. Subtract because we're trying to
             # find where each index will get its next value from, not where a value is going to
-            new_lon_idx = numpy.arange(0, self.target_field.shape[1]) - u_wind
+            new_lon_idx = numpy.arange(0, self.grid.shape[1]) - u_wind
             new_lat_idx = idx - v_wind
 
             # Clamp it to be in a valid range so we don't wrap around or go oob
-            new_lon_idx = numpy.clip(new_lon_idx, 0, self.target_field.shape[1])
-            new_lat_idx = numpy.clip(new_lat_idx, 0, self.target_field.shape[0])
+            new_lon_idx = new_lon_idx.clip(0, self.grid.shape[1])
+            new_lat_idx = new_lat_idx.clip(0, self.grid.shape[0])
 
-            new_idxs[0][idx*self.target_field.shape[1] : (idx+1)*self.target_field.shape[1]] = new_lat_idx
-            new_idxs[1][idx*self.target_field.shape[1] : (idx+1)*self.target_field.shape[1]] = new_lon_idx
+            new_idxs[0][idx*self.grid.shape[1] : (idx+1)*self.grid.shape[1]] = new_lat_idx
+            new_idxs[1][idx*self.grid.shape[1] : (idx+1)*self.grid.shape[1]] = new_lon_idx
 
         return new_idxs
 
-    def step(self, duration):
-        wind_offset_coords = self._compute_new_indexes(duration)
-        self.values = scipy.ndimage.map_coordinates(self.values, wind_offset_coords).reshape(self.target_field.grid.shape)
-        return self.values
+    def step(self):
+        self.values = scipy.ndimage.map_coordinates(self.values, self.coord_map).reshape(self.grid.shape)
+        return GriddedField(self.values, self.grid)
 
 
 rad_ds = Dataset('/Users/nickgregory/Downloads/nc-ignore/wx/rta_testing/n0q_comp.nc')
 rad_lats, rad_lons, rad_data = (rad_ds.variables.get(k)[...] for k in ('lat', 'lon', 'composite_n0q'))
 rad_data.set_fill_value(-40)
-rad = GriddedField(rad_data, Grid.from_unique_arrays(rad_lats, rad_lons))
+rad = GriddedField(rad_data.filled(), RegularGrid(rad_lats, rad_lons))
 print("Loaded radar composite")
 
 hrrr_grib = pygrib.open('/Users/nickgregory/Downloads/nc-ignore/wx/rta_testing/hrrr.t01z.wrfsubhf01.grib2')
@@ -176,7 +199,7 @@ print("Loaded U wind")
 v_wind = GriddedField.from_grib_msg(hrrr_grib.select(name='V component of wind')[0])
 print("Loaded V wind")
 
-small_grid = Grid.from_ranges(
+small_grid = RegularGrid.from_ranges(
     rad_lats[0], rad_lats[-1], 0.03,
     rad_lons[0], rad_lons[-1], 0.03,
 )
@@ -192,7 +215,8 @@ v_wind_zoomed = v_wind_resampled.zoom(rad.grid)
 print("Zoomed V wind")
 
 STEP_DURATION = 60  # seconds
-projector = WindSkewProjector(rad, u_wind_zoomed, v_wind_zoomed)
+projector = WindSkewProjector(rad, u_wind_zoomed, v_wind_zoomed, STEP_DURATION)
 for i in range(15):
-    projector.step(STEP_DURATION)
-    print(projector.values)
+    forecast = projector.step()
+    print(f"Step {i}")
+    forecast.render(f"{i}.png", pyart.graph.cm.NWSRef)

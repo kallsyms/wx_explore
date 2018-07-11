@@ -10,3 +10,5 @@ pygrib
 scipy
 gdal
 requests
+pillow
+arm_pyart
