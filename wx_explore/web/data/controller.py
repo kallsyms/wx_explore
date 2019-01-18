@@ -3,7 +3,7 @@ from flask import Blueprint, abort, jsonify, request
 from datetime import datetime, timedelta
 
 from wx_explore.common.utils import datetime2unix
-from wx_explore.web.data.models import (
+from wx_explore.common.models import (
     Source,
     Location,
     Metric,

@@ -12,3 +12,4 @@ gdal
 requests
 pillow
 arm_pyart
+boto3

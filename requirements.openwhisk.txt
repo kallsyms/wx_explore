@@ -1,0 +1,5 @@
+flask_sqlalchemy
+bootstrap_flask
+boto3
+geoalchemy2
+shapely

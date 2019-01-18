@@ -1,19 +1,25 @@
 #!/usr/bin/env python3
 from geoalchemy2 import Geography, Raster
 from shapely import wkb
+from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey
+from sqlalchemy.orm import relationship
+from sqlalchemy.ext.declarative import declarative_base
 
-from wx_explore.web import db
+
+Base = declarative_base()
 
 
-class Source(db.Model):
+class Source(Base):
     """
     A specific source data may come from.
     E.g. NEXRAD L2, GFS, NAM, HRRR
     """
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(128))
-    src_url = db.Column(db.String(1024))
-    last_updated = db.Column(db.DateTime)
+    __tablename__ = "source"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(128))
+    src_url = Column(String(1024))
+    last_updated = Column(DateTime)
 
     # Fields are backref'd
 
@@ -29,14 +35,16 @@ class Source(db.Model):
         return f"<Source id={self.id} name='{self.name}'>"
 
 
-class Metric(db.Model):
+class Metric(Base):
     """
     A metric that various source fields can have values for.
     E.g. temperature, precipitation, visibility
     """
-    id = db.Column(db.Integer, primary_key=True)
-    name = db.Column(db.String(128))
-    units = db.Column(db.String(16))
+    __tablename__ = "metric"
+
+    id = Column(Integer, primary_key=True)
+    name = Column(String(128))
+    units = Column(String(16))
 
     def serialize(self):
         return {
@@ -49,22 +57,24 @@ class Metric(db.Model):
         return f"<Metric id={self.id} name='{self.name}'>"
 
 
-class SourceField(db.Model):
+class SourceField(Base):
     """
     A specific field inside of a source.
     E.g. Composite reflectivity @ entire atmosphere, 2m temps, visibility @ ground
     """
-    id = db.Column(db.Integer, primary_key=True)
-    source_id = db.Column(db.Integer, db.ForeignKey('source.id'))
+    __tablename__ = "source_field"
 
-    idx_short_name = db.Column(db.String(15))  # e.g. TMP, VIS
-    idx_level = db.Column(db.String(255))  # e.g. surface, 2 m above ground
-    grib_name = db.Column(db.String(255))  # e.g. 2 metre temperature
+    id = Column(Integer, primary_key=True)
+    source_id = Column(Integer, ForeignKey('source.id'))
 
-    metric_id = db.Column(db.Integer, db.ForeignKey('metric.id'))
+    idx_short_name = Column(String(15))  # e.g. TMP, VIS
+    idx_level = Column(String(255))  # e.g. surface, 2 m above ground
+    grib_name = Column(String(255))  # e.g. 2 metre temperature
 
-    source = db.relationship('Source', backref='fields')
-    metric = db.relationship('Metric', backref='fields')
+    metric_id = Column(Integer, ForeignKey('metric.id'))
+
+    source = relationship('Source', backref='fields')
+    metric = relationship('Metric', backref='fields')
 
     def serialize(self):
         return {
@@ -78,14 +88,16 @@ class SourceField(db.Model):
         return f"<SourceField id={self.id} name='{self.name}'>"
 
 
-class Location(db.Model):
+class Location(Base):
     """
     A specific location that we have a lat/lon for.
     Currently just zipcodes.
     """
-    id = db.Column(db.Integer, primary_key=True)
-    location = db.Column(Geography('Point,4326'))
-    name = db.Column(db.String(512))
+    __tablename__ = "location"
+
+    id = Column(Integer, primary_key=True)
+    location = Column(Geography('Point,4326'))
+    name = Column(String(512))
 
     def get_coords(self):
         """
@@ -108,36 +120,40 @@ class Location(db.Model):
         return f"<Location id={self.id} name='{self.name}'>"
 
 
-class CoordinateLookup(db.Model):
+class CoordinateLookup(Base):
     """
     Table that holds a lookup from location to grid x,y for the given source field.
     """
-    src_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
-    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
-    x = db.Column(db.Integer)
-    y = db.Column(db.Integer)
+    __tablename__ = "coordinate_lookup"
 
-    src_field = db.relationship('SourceField')
-    location = db.relationship('Location')
+    src_field_id = Column(Integer, ForeignKey('source_field.id'), primary_key=True)
+    location_id = Column(Integer, ForeignKey('location.id'), primary_key=True)
+    x = Column(Integer)
+    y = Column(Integer)
+
+    src_field = relationship('SourceField')
+    location = relationship('Location')
 
 
-class DataRaster(db.Model):
+class DataRaster(Base):
     """
     Table that holds the "raw" raster data.
     """
-    source_field_id = db.Column(db.Integer, db.ForeignKey('source_field.id'), primary_key=True)
-    valid_time = db.Column(db.DateTime, primary_key=True)
-    run_time = db.Column(db.DateTime, primary_key=True)
-    row = db.Column(db.Integer, primary_key=True)
-    rast = db.Column(Raster)
+    __tablename__ = "data_raster"
 
-    src_field = db.relationship('SourceField')
+    source_field_id = Column(Integer, ForeignKey('source_field.id'), primary_key=True)
+    valid_time = Column(DateTime, primary_key=True)
+    run_time = Column(DateTime, primary_key=True)
+    row = Column(Integer, primary_key=True)
+    rast = Column(Raster)
+
+    src_field = relationship('SourceField')
 
     def __repr__(self):
         return f"<DataRaster source_field_id={self.source_field_id} valid_time={self.valid_time} run_time={self.run_time} row={self.row}>"
 
 
-class LocationData(db.Model):
+class LocationData(Base):
     """
     Table that holds denormalized data for a given location.
 
@@ -145,5 +161,7 @@ class LocationData(db.Model):
     list of objects, each have the SourceField they come from, the run time of the model,
     and the actual field value.
     """
-    location_id = db.Column(db.Integer, db.ForeignKey('location.id'), primary_key=True)
-    values = db.Column(db.JSON)
+    __tablename__ = "location_data"
+
+    location_id = Column(Integer, ForeignKey('location.id'), primary_key=True)
+    values = Column(JSON)

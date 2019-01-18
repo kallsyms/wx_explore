@@ -6,12 +6,11 @@ import gdalconst
 import logging
 import numpy
 import pygrib
-import requests
 import collections
 
 from wx_explore.common.utils import datetime2unix
 from wx_explore.ingest.raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
-from wx_explore.web.data.models import (
+from wx_explore.common.models import (
     SourceField,
     CoordinateLookup,
     DataRaster,
@@ -20,7 +19,7 @@ from wx_explore.web.data.models import (
 )
 from wx_explore.web import db
 
-logger = logging.getLogger('ingest_common')
+logger = logging.getLogger(__name__)
 
 
 def get_location_index_map(grib_message, locations):
@@ -154,71 +153,3 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
         db.session.commit()
 
         logger.info("Done saving denormalized data")
-
-
-def get_grib_ranges(idxs, source):
-    """
-    Given an index file, return a list of tuples that denote the start and length of each chunk
-    of the GRIB that should be downloaded
-    :param idxs: Index file as a string
-    :param source: Source that the grib is from
-    :return: List of (start, length)
-    """
-    offsets = []
-    last = None
-    for line in idxs.split('\n'):
-        tokens = line.split(':')
-        if len(tokens) < 7:
-            continue
-
-        _, offset, _, short_name, level, _, _ = tokens
-
-        offset = int(offset)
-
-        if last is not None:
-            offsets.append((last, offset-last))
-            last = None
-
-        if SourceField.query.filter_by(
-                source_id=source.id,
-                idx_short_name=short_name,
-                idx_level=level).first():
-            last = offset
-
-    return offsets
-
-
-def reduce_grib(grib_url, idx_url, source):
-    for _ in range(10):
-        try:
-            idxs = requests.get(idx_url).text
-            break
-        except KeyboardInterrupt:
-            raise
-        except:
-            continue
-    else:
-        raise Exception("Unable to download idx file!")
-
-    offsets = get_grib_ranges(idxs, source)
-
-    out = b''
-
-    for offset, length in offsets:
-        start = offset
-        end = offset + length - 1
-
-        for _ in range(3):
-            try:
-                out += requests.get(grib_url, headers={
-                    "Range": f"bytes={start}-{end}"
-                }).content
-                break
-            except KeyboardInterrupt:
-                raise
-            except:
-                continue
-        else:
-            logger.warning(f"Couldn't get grib range from {start} to {end}. Continuing anyways...")
-
-    return out

@@ -1,7 +1,12 @@
+# Quick list
+* Move to `bootstrap_flask` or to plain old bootstrap
+    * Or off entirely to Vue...
+
 # Stage 1: API
 * Missing data values
 * Figure out best representation to return metric data in API
 * Transformers on ingest to standardize units
+* Cloud!
 * More data sources
     * ~[HRRR](http://www.nco.ncep.noaa.gov/pmb/products/hrrr/)~
     * [RAP](http://www.nco.ncep.noaa.gov/pmb/products/rap/)
