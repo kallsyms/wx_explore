@@ -1,0 +1,9 @@
+Changes from stock UEMS:
+
+* Modified `Address2Iface` in `strc/Uutils/Enet.pm` to always return `lo` so `ip` doesn't need to be installed.
+
+Modified files:
+
+* UEMS itself: http://vtxwx-model-data.s3.us-south.cloud-object-storage.appdomain.cloud/uems.tar.gz - just extract to `/usr1`
+* CONUS domain: http://vtxwx-model-data.s3.us-south.cloud-object-storage.appdomain.cloud/conus.tar.gz - extract to `/usr1/uems/runs/conus`
+* global domain: http://vtxwx-model-data.s3.us-south.cloud-object-storage.appdomain.cloud/global.tar.gz - extract to `/usr1/uems/runs/global`

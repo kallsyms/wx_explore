@@ -1,3 +1,4 @@
+#!/usr/bin/env python3
 from netCDF4 import Dataset
 from scipy.spatial import cKDTree
 from PIL import Image
