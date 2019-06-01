@@ -67,3 +67,7 @@ def reduce_grib(grib_url, idx_url, source_fields, out_f):
                 continue
         else:
             logger.warning(f"Couldn't get grib range from {start} to {end}. Continuing anyways...")
+
+    out_f.flush()
+
+    return len(offsets)

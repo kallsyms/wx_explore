@@ -3,3 +3,5 @@
 deploy/
 virtualenv/
 **/config.py
+.python_packages
+*.zip
