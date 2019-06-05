@@ -12,10 +12,6 @@ from wx_explore.ingest.reduce_grib import reduce_grib
 from wx_explore.common.models import SourceField
 
 
-def normalize(d):
-    return (d - numpy.min(d)) / numpy.ptp(d)
-
-
 def main(req: func.HttpRequest) -> func.HttpResponse:
     args = req.params
 
@@ -42,7 +38,10 @@ def main(req: func.HttpRequest) -> func.HttpResponse:
         msg = grb.read(1)[0]
         data = msg.data()[0]
 
-        img = Image.fromarray(numpy.uint8(normalize(data)*255))
+        # flip vertically so north is up
+        data = data[::-1]
+
+        img = Image.fromarray(numpy.int16(data))
         img_data = io.BytesIO()
 
         img.save(img_data, format='PNG')
