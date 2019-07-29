@@ -17,6 +17,7 @@ class Source(Base):
     __tablename__ = "source"
 
     id = Column(Integer, primary_key=True)
+    short_name = Column(String(8))
     name = Column(String(128))
     src_url = Column(String(1024))
     last_updated = Column(DateTime)
@@ -26,13 +27,14 @@ class Source(Base):
     def serialize(self):
         return {
             "id": self.id,
+            "short_name": self.short_name,
             "name": self.name,
             "src_url": self.src_url,
             "last_updated": self.last_updated,
         }
 
     def __repr__(self):
-        return f"<Source id={self.id} name='{self.name}'>"
+        return f"<Source id={self.id} short_name='{self.short_name}'>"
 
 
 class Metric(Base):

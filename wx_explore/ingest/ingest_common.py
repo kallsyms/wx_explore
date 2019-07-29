@@ -96,6 +96,8 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
             logger.info("Coordinate lookup table loaded")
 
         if save_rasters:
+            logger.info(f"Saving raster data for {field}")
+
             band_id = msg.messagenumber
             opts = make_options(0, band_id)
             band = ds.GetRasterBand(band_id)
@@ -117,7 +119,7 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
 
             db.session.commit()
 
-            logger.info("Done saving raster data")
+            logger.info(f"Done saving raster data for {field}")
 
         if save_denormalized:
             grib_data = msg.values
@@ -132,9 +134,9 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
     if save_denormalized:
         logger.info("Saving denormalized location/time data for all layers")
 
-        # TODO: multi-process lock here so we can ingest multiple things at once and not have update conflicts here
-
-        for loc_id in loc_time_values:
+        # Randomize the locations to minimize chance of two ingest workers conflicting
+        # TODO: Push all of this to the DB? create a temporary table then do a massive UPDATE?
+        for loc_id in random.sample(list(loc_time_values), len(loc_time_values)):
             loc_data = LocationData.query.filter_by(location_id=loc_id).first()
             if not loc_data:
                 loc_data = LocationData(
@@ -150,6 +152,6 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
                 else:
                     loc_data.values[vt_key] = loc_time_values[loc_id][valid_time]
 
-        db.session.commit()
+            db.session.commit()
 
         logger.info("Done saving denormalized data")

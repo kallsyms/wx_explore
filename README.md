@@ -24,3 +24,19 @@ In the context of the prior example, the most recent HRRR may say the temp at 12
 ## Why?
 I haven't found a website like this, and I think it would be useful both for meteorologists (the API can be easily integrated into other projects), as well
 as the average person who is just a bit curious about where their daily forecast really comes from.
+
+# Setup
+
+## Config
+
+Put something like the following in `wx_explore/web/config.py`
+
+```python
+import os
+
+class DevConfig(object):
+    DEBUG = True
+    SECRET_KEY = "debug"
+    SQLALCHEMY_DATABASE_URI = 'postgres://wx:wx@localhost/wx'
+    SQLALCHEMY_TRACK_MODIFICATIONS = False
+```

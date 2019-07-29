@@ -42,7 +42,8 @@ def reduce_grib(grib_url, idx_url, source_fields, out_f):
             break
         except KeyboardInterrupt:
             raise
-        except:
+        except Exception as e:
+            print(e)
             time.sleep(5)
             continue
     else:
@@ -62,7 +63,8 @@ def reduce_grib(grib_url, idx_url, source_fields, out_f):
                 break
             except KeyboardInterrupt:
                 raise
-            except:
+            except Exception as e:
+                print(e)
                 time.sleep(5)
                 continue
         else:

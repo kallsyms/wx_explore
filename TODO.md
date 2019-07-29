@@ -1,6 +1,13 @@
 # Quick list
-* Move to `bootstrap_flask` or to plain old bootstrap
-    * Or off entirely to Vue...
+* Build/fetch coordinate lookup table based on projection data in grib, not sourcefield
+* Move `db` instance out of `web`
+
+# Medium term
+* incorporate l2 radar into rta
+    * streaming from https://registry.opendata.aws/noaa-nexrad/
+
+# Long term misc ideas
+* Give each storm cell a unique ID (will already need to be identified for rta); plot trajectory over time, aggregate stats about where cells pop up, etc.
 
 # Stage 1: API
 * Missing data values

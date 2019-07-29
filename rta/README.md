@@ -49,3 +49,9 @@ Just model it ourselves. Since we have end conditions, we can nudge the simulati
 Issues:
 
 * Time. Even on a big EC2 instance (c5.4xlarge) a single 3 hour global GFS simulation (with a 240 second timestep nonetheless) takes ~5 minutes.
+
+
+# NOTES
+
+## Prior Work
+CoSPA: [https://pdfs.semanticscholar.org/48fa/aa745bba9e39938ecea0c2dc00cc36ba6c91.pdf](https://pdfs.semanticscholar.org/48fa/aa745bba9e39938ecea0c2dc00cc36ba6c91.pdf)
