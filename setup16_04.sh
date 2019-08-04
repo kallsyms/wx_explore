@@ -24,12 +24,12 @@ export PATH="$HOME/.pyenv/bin:$PATH"
 eval "$(pyenv init -)"
 eval "$(pyenv virtualenv-init -)"
 
-pyenv install 3.6.4
-pyenv virtualenv 3.6.4 wx_explore
+pyenv install 3.6.5
+pyenv virtualenv 3.6.5 wx_explore
 pyenv global wx_explore
 
 pip install --global-option=build_ext --global-option="-I/usr/include/gdal" GDAL==2.1.3
-pip install numpy pyproj
+pip install numpy
 pip install -r requirements.txt
 
 echo "Be sure to setup a config in wx_explore/web/config.py"
