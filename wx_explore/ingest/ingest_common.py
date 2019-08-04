@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from scipy.spatial import cKDTree
 from shapely import wkb
 import gdal
@@ -13,6 +12,7 @@ from wx_explore.ingest.raster2pgsql import make_options, wkblify_raster_header, 
 from wx_explore.common.models import (
     SourceField,
     CoordinateLookup,
+    Projection,
     DataRaster,
     Location,
     LocationData,
@@ -53,6 +53,7 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
     ds = gdal.Open(file_path, gdalconst.GA_ReadOnly)
 
     # Cache coordinate lookup tables so they can be reused
+    # Map of projection_id, location_id to (x,y)
     coordinate_luts = collections.defaultdict(dict)
 
     # Build up a big array of loc_id -> {valid_time -> [values]}
@@ -69,29 +70,44 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
 
         logger.info("Processing message '%s' (field '%s')", msg, field.grib_name)
 
-        if field.id not in coordinate_luts:
-            # Ensure the zipcode->coordinate lookup table has been created in-DB for this field
-            if CoordinateLookup.query.filter_by(src_field_id=field.id).count() == 0:
-                logger.info("Generating coordinate lookup table for field '%s'", field.grib_name)
+        if field.projection is None or field.projection.params != msg.projparams:
+            projection = Projection.query.filter_by(
+                params=msg.projparams
+            ).first()
+
+            if projection is None:
+                projection = Projection(
+                    params=msg.projparams,
+                )
+                db.session.add(projection)
+                db.session.commit()
+
+            field.projection_id = projection.id
+            db.session.commit()
+
+        if field.projection.id not in coordinate_luts:
+            # Ensure the location->coordinate lookup table has been created in-DB for this field
+            if CoordinateLookup.query.filter_by(projection_id=field.projection.id).count() == 0:
+                logger.info("Generating coordinate lookup table for projection with params '%s'", field.projection.params)
                 entries = []
                 for loc_id, x, y in get_location_index_map(msg, Location.query.all()):
                     # Create the DB object
                     lookup_entry = CoordinateLookup()
-                    lookup_entry.src_field_id = field.id
+                    lookup_entry.projection_id = field.projection.id
                     lookup_entry.location_id = loc_id
                     lookup_entry.x = x
                     lookup_entry.y = y
                     entries.append(lookup_entry)
 
                     # And cache locally
-                    coordinate_luts[field.id][loc_id] = (y, x)
+                    coordinate_luts[field.projection.id][loc_id] = (y, x)
 
                 db.session.bulk_save_objects(entries)
                 db.session.commit()
             else:
                 # lookup table is in DB, but not cached locally yet
-                for entry in CoordinateLookup.query.all():
-                    coordinate_luts[field.id][entry.location_id] = (entry.y, entry.x)
+                for entry in CoordinateLookup.query.filter_by(projection_id=field.projection.id).all():
+                    coordinate_luts[field.projection.id][entry.location_id] = (entry.y, entry.x)
 
             logger.info("Coordinate lookup table loaded")
 
@@ -124,7 +140,7 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
         if save_denormalized:
             grib_data = msg.values
 
-            for loc_id, coords in coordinate_luts[field.id].items():
+            for loc_id, coords in coordinate_luts[field.projection.id].items():
                 loc_time_values[loc_id][msg.validDate].append({
                     "src_field_id": field.id,
                     "run_time": datetime2unix(msg.analDate),
@@ -134,24 +150,36 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
     if save_denormalized:
         logger.info("Saving denormalized location/time data for all layers")
 
-        # Randomize the locations to minimize chance of two ingest workers conflicting
-        # TODO: Push all of this to the DB? create a temporary table then do a massive UPDATE?
-        for loc_id in random.sample(list(loc_time_values), len(loc_time_values)):
-            loc_data = LocationData.query.filter_by(location_id=loc_id).first()
-            if not loc_data:
-                loc_data = LocationData(
-                    location_id=loc_id,
-                    values={},
-                )
-                db.session.add(loc_data)
+        from sqlalchemy import Table, MetaData
+        ldtemp = Table("location_data_tmp", MetaData(), *[col.copy() for col in LocationData.__table__.columns], prefixes=['TEMPORARY'])
+        ldtemp.create(db.session.connection())
 
-            for valid_time in loc_time_values[loc_id]:
-                vt_key = datetime2unix(valid_time)
-                if vt_key in loc_data.values:
-                    loc_data.values[vt_key].extend(loc_time_values[loc_id][valid_time])
-                else:
-                    loc_data.values[vt_key] = loc_time_values[loc_id][valid_time]
+        import json
 
-            db.session.commit()
+        stuff = [
+            (str(loc_id), str(valid_time), json.dumps(values))
+            for loc_id, loc_id_values in loc_time_values.items()
+            for valid_time, values in loc_id_values.items()
+        ]
+
+        for i in range(0, len(stuff), 10000):
+            db.session.execute("INSERT INTO location_data_tmp VALUES " + ",".join("('" + "','".join(s) + "')" for s in stuff[i:i+10000]))
+
+        # XXX: For some reason this doesn't seem to be doing a bulk insert?
+        # db.session.execute(ldtemp.insert(), [
+        #     {
+        #         "location_id": loc_id,
+        #         "valid_time": valid_time,
+        #         "values": values,
+        #     }
+        #     for loc_id, loc_id_values in loc_time_values.items()
+        #     for valid_time, values in loc_id_values.items()
+        # ])
+
+        db.session.execute("INSERT INTO location_data SELECT * FROM location_data_tmp ON CONFLICT (location_id, valid_time) DO UPDATE SET values = location_data.values || excluded.values")
+
+        db.session.commit()
+        ldtemp.drop(db.session.connection())
+        db.session.commit()
 
         logger.info("Done saving denormalized data")

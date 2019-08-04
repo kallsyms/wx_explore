@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 """
 This is a small shim wrapping the actual functions to make them (in theory) cloud/FaaS provider
 agnostic.

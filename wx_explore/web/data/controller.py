@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 from flask import Blueprint, abort, jsonify, request
 from datetime import datetime, timedelta
 
@@ -141,30 +140,30 @@ def wx_for_location(loc_id):
             if end > now + timedelta(days=7):
                 end = now + timedelta(days=7)
 
-    # Get all data points for the location and times specified.
-    # This is a dictionary mapping str(valid_time) -> list of metric values
-    loc_data = LocationData.query.filter_by(location_id=location.id).first().values
-
-    # Turn the str(int) keys into datetime keys, filtering out times we don't want
-    loc_data = {
-        datetime.utcfromtimestamp(int(valid_time)): vals
-        for valid_time, vals in loc_data.items() if start <= datetime.utcfromtimestamp(int(valid_time)) < end
-    }
-
-    # wx['data'] is a dict of unix_time->metrics, where each metric may have multiple values from different sources
-    wx = {
-        'ordered_times': sorted(datetime2unix(valid_time) for valid_time in loc_data),
-        'data': {datetime2unix(valid_time): [] for valid_time in loc_data},
-    }
-
+    # TODO: actually incorporate this into the filter below.
+    # select location_id, valid_time, array_to_json(array_agg(v.*)) as values from location_data ld, json_array_elements(values::json) v where (v->>'src_field_id')::int in (3) group by location_id, valid_time;
     requested_source_field_ids = set()
     for metric in metrics:
         for sf in metric.fields:
             requested_source_field_ids.add(sf.id)
 
-    for valid_time, values in loc_data.items():
-        for data_point in values:
+    # Get all data points for the location and times specified.
+    # This is a dictionary mapping str(valid_time) -> list of metric values
+    loc_data = LocationData.query.filter(
+        LocationData.location_id == location.id,
+        LocationData.valid_time >= start,
+        LocationData.valid_time < end,
+    ).all()
+
+    # wx['data'] is a dict of unix_time->metrics, where each metric may have multiple values from different sources
+    wx = {
+        'ordered_times': sorted(datetime2unix(data.valid_time) for data in loc_data),
+        'data': {datetime2unix(data.valid_time): [] for data in loc_data},
+    }
+
+    for data in loc_data:
+        for data_point in data.values:
             if data_point['src_field_id'] in requested_source_field_ids:
-                wx['data'][datetime2unix(valid_time)].append(data_point)
+                wx['data'][datetime2unix(data.valid_time)].append(data_point)
 
     return jsonify(wx)

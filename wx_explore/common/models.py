@@ -1,7 +1,7 @@
-#!/usr/bin/env python3
 from geoalchemy2 import Geography, Raster
 from shapely import wkb
-from sqlalchemy import Column, Integer, String, DateTime, JSON, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import relationship
 from sqlalchemy.ext.declarative import declarative_base
 
@@ -68,14 +68,15 @@ class SourceField(Base):
 
     id = Column(Integer, primary_key=True)
     source_id = Column(Integer, ForeignKey('source.id'))
+    projection_id = Column(Integer, ForeignKey('projection.id'))
+    metric_id = Column(Integer, ForeignKey('metric.id'))
 
     idx_short_name = Column(String(15))  # e.g. TMP, VIS
     idx_level = Column(String(255))  # e.g. surface, 2 m above ground
     grib_name = Column(String(255))  # e.g. 2 metre temperature
 
-    metric_id = Column(Integer, ForeignKey('metric.id'))
-
     source = relationship('Source', backref='fields')
+    projection = relationship('Projection')
     metric = relationship('Metric', backref='fields')
 
     def serialize(self):
@@ -122,18 +123,28 @@ class Location(Base):
         return f"<Location id={self.id} name='{self.name}'>"
 
 
+class Projection(Base):
+    """
+    Table that maps project params to a unique ID for use in CoordinateLookup
+    """
+    __tablename__ = "projection"
+
+    id = Column(Integer, primary_key=True)
+    params = Column(JSONB, unique=True)
+
+
 class CoordinateLookup(Base):
     """
-    Table that holds a lookup from location to grid x,y for the given source field.
+    Table that holds a lookup from location to grid x,y for the given projection.
     """
     __tablename__ = "coordinate_lookup"
 
-    src_field_id = Column(Integer, ForeignKey('source_field.id'), primary_key=True)
+    projection_id = Column(Integer, ForeignKey('projection.id'), primary_key=True)
     location_id = Column(Integer, ForeignKey('location.id'), primary_key=True)
     x = Column(Integer)
     y = Column(Integer)
 
-    src_field = relationship('SourceField')
+    projection = relationship('Projection')
     location = relationship('Location')
 
 
@@ -159,11 +170,11 @@ class LocationData(Base):
     """
     Table that holds denormalized data for a given location.
 
-    The data stored is a JSON dictionary mapping timestamps -> values, which are a
-    list of objects, each have the SourceField they come from, the run time of the model,
-    and the actual field value.
+    The data stored is a JSON list of objects, each have the SourceField they come from,
+    the run time of the model, and the actual field value.
     """
     __tablename__ = "location_data"
 
     location_id = Column(Integer, ForeignKey('location.id'), primary_key=True)
-    values = Column(JSON)
+    valid_time = Column(DateTime, primary_key=True)
+    values = Column(JSONB)
