@@ -1,5 +1,5 @@
 # Quick list
-* Build/fetch coordinate lookup table based on projection data in grib, not sourcefield
+* keep list of files ingested
 * Move `db` instance out of `web`
 
 # Medium term
