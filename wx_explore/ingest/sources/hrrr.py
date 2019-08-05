@@ -30,8 +30,6 @@ def ingest_hrrr(time_min=0, time_max=18, run_time=None):
             logging.info(f"Downloading and reducing {url}")
             reduce_grib(url, idx_url, hrrr_source.fields, reduced)
 
-        reduced.flush()
-
         logging.info("Ingesting all")
         ingest_grib_file(reduced.name, hrrr_source)
 

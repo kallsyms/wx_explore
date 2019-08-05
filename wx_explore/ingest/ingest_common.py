@@ -141,11 +141,12 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
             grib_data = msg.values
 
             for loc_id, coords in coordinate_luts[field.projection.id].items():
-                loc_time_values[loc_id][msg.validDate].append({
-                    "src_field_id": field.id,
-                    "run_time": datetime2unix(msg.analDate),
-                    "value": float(grib_data[coords]),
-                })
+                if not grib_data.mask[coords]:
+                    loc_time_values[loc_id][msg.validDate].append({
+                        "src_field_id": field.id,
+                        "run_time": datetime2unix(msg.analDate),
+                        "value": float(grib_data[coords]),
+                    })
 
     if save_denormalized:
         logger.info("Saving denormalized location/time data for all layers")

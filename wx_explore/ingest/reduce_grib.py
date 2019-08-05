@@ -1,6 +1,6 @@
 import logging
-import requests
-import time
+
+from wx_explore.common.utils import get_url
 
 logger = logging.getLogger(__name__)
 
@@ -35,36 +35,21 @@ def get_grib_ranges(idxs, source_fields):
 
 
 def reduce_grib(grib_url, idx_url, source_fields, out_f):
-    for _ in range(3):
-        try:
-            idxs = requests.get(idx_url).text
-            break
-        except KeyboardInterrupt:
-            raise
-        except Exception as e:
-            print(e)
-            time.sleep(5)
-            continue
-    else:
-        raise Exception("Unable to download idx file!")
-
+    idxs = get_url(idx_url).text
     offsets = get_grib_ranges(idxs, source_fields)
 
     for offset, length in offsets:
         start = offset
         end = offset + length - 1
 
-        for _ in range(3):
-            try:
-                out_f.write(requests.get(grib_url, headers={
-                    "Range": f"bytes={start}-{end}"
-                }).content)
-                break
-            except KeyboardInterrupt:
-                raise
-            except Exception as e:
-                print(e)
-                time.sleep(5)
-                continue
-        else:
-            logger.warning(f"Couldn't get grib range from {start} to {end}. Continuing anyways...")
+        try:
+            grib_data = get_url(grib_url, headers={
+                "Range": f"bytes={start}-{end}"
+            }).content
+        except Exception as e:
+            print(f"Unable to fetch grib data: {e}. Continuing anyways...")
+            continue
+
+        out_f.write(grib_data)
+
+    out_f.flush()
