@@ -10,7 +10,7 @@ from wx_explore.web import db
 
 
 def ingest_gfs(time_min=0, time_max=384, run_time=None):
-    times = list(range(time_min, min(time_max+1, 120))) + list(range(120, time_max+1))
+    times = list(range(time_min, min(time_max+1, 120))) + list(range(120, time_max+1, 3))
 
     gfs_source = Source.query.filter_by(short_name="gfs").first()
 

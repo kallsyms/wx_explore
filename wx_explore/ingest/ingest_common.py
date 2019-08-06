@@ -141,7 +141,7 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
             grib_data = msg.values
 
             for loc_id, coords in coordinate_luts[field.projection.id].items():
-                if not grib_data.mask[coords]:
+                if not numpy.ma.is_masked(grib_data) or not grib_data.mask[coords]:
                     loc_time_values[loc_id][msg.validDate].append({
                         "src_field_id": field.id,
                         "run_time": datetime2unix(msg.analDate),
