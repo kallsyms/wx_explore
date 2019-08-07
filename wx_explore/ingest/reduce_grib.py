@@ -35,6 +35,13 @@ def get_grib_ranges(idxs, source_fields):
 
 
 def reduce_grib(grib_url, idx_url, source_fields, out_f):
+    """
+    Downloads the appropriate chunks (based on desired fields described by source_fields)
+    of the GRIB at grib_url (using idx_url to quickly seek around) and writes the chunks
+    to out_f.
+
+    It is assumed that the caller has checked that the URLs exist before this function is called.
+    """
     idxs = get_url(idx_url).text
     offsets = get_grib_ranges(idxs, source_fields)
 
@@ -47,7 +54,7 @@ def reduce_grib(grib_url, idx_url, source_fields, out_f):
                 "Range": f"bytes={start}-{end}"
             }).content
         except Exception as e:
-            print(f"Unable to fetch grib data: {e}. Continuing anyways...")
+            logger.exception("Unable to fetch grib data. Continuing anyways...")
             continue
 
         out_f.write(grib_data)

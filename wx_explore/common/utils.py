@@ -31,3 +31,8 @@ def get_url(url, headers=None, retries=3):
         raise Exception(f"Unable to download file: unexpected status code {r.status_code}")
 
     return r
+
+
+def url_exists(url):
+    r = requests.head(url)
+    return 200 <= r.status_code < 300

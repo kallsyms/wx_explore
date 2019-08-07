@@ -19,8 +19,8 @@
 * More data sources
     * ~[HRRR](http://www.nco.ncep.noaa.gov/pmb/products/hrrr/)~
     * [RAP](http://www.nco.ncep.noaa.gov/pmb/products/rap/)
-    * [GFS](http://www.nco.ncep.noaa.gov/pmb/products/gfs/)
-    * [NAM](http://www.nco.ncep.noaa.gov/pmb/products/nam/)
+    * ~[GFS](http://www.nco.ncep.noaa.gov/pmb/products/gfs/)~
+    * ~[NAM](http://www.nco.ncep.noaa.gov/pmb/products/nam/)~
     * [SREF](http://www.nco.ncep.noaa.gov/pmb/products/sref/)
     * [RTMA](http://www.nco.ncep.noaa.gov/pmb/products/rtma/)
     * [CMCE](http://www.nco.ncep.noaa.gov/pmb/products/cmcens/)
