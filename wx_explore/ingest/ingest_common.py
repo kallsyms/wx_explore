@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 from scipy.spatial import cKDTree
 from shapely import wkb
 import gdal
@@ -191,37 +190,3 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
         db.session.commit()
 
         logger.info("Done saving denormalized data")
-
-
-def ingest_from_queue():
-    with get_queue() as q:
-        for ingest_req in q:
-            # Queue is empty for now
-            if ingest_req is None:
-                break
-
-            # Expire out anything whose run time is very old (probably a bad request/URL)
-            if datetime.utcfromtimestamp(ingest_req['run_time']) < datetime.utcnow() - timedelta(hours=12):
-                continue
-
-            # If this URL doesn't exist, try again in a few minutes
-            if not url_exists(ingest_req['url']):
-                q.put(ingest_req, '5m')
-                continue
-
-            source = Source.query.filter_by(short_name=ingest_req['source']).first()
-
-            with tempfile.NamedTemporaryFile() as reduced:
-                logging.info(f"Downloading and reducing {ingest_req['url']} from {ingest_req['run_time']} {source.short_name}")
-                reduce_grib(ingest_req['url'], ingest_req['idx_url'], source.fields, reduced)
-                logging.info("Ingesting all")
-                ingest_grib_file(reduced.name, source)
-
-            source.last_updated = datetime.utcnow()
-
-            db.session.commit()
-
-
-if __name__ == "__main__":
-    # TODO: multithread? is sqlalchemy threadsafe?
-    ingest_from_queue()
