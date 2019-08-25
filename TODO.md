@@ -1,6 +1,5 @@
 # Quick list
-* keep list of files ingested
-    * switch to each ingest source giving a list of URLs to download given the time and a minutely cron job to download ones that haven't been ingested
+* batch worker imports by source so DB upserts are more efficient
 * may be able to remove source id from source field? things seem to be named uniformly...
 * Move `db` instance out of `web`
 
