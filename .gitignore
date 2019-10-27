@@ -1,5 +1,4 @@
 *.pyc
 .idea/
 virtualenv/
-**/config.py
 .python_packages

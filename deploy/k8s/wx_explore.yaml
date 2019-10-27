@@ -1,0 +1,96 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wx-explore-api
+  labels:
+    app: wx-explore-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wx-explore-api
+  template:
+    metadata:
+      labels:
+        app: wx-explore-api
+    spec:
+      containers:
+        - name: wx-explore-api
+          image: kallsyms/wx_explore:latest
+          imagePullPolicy: Always
+          env:
+            - name: POSTGRES_USER
+              valueFrom:
+                secretKeyRef:
+                  name: wx-explore
+                  key: db-user
+            - name: POSTGRES_PASS
+              valueFrom:
+                secretKeyRef:
+                  name: wx-explore
+                  key: db-pass
+            - name: POSTGRES_HOST
+              valueFrom:
+                secretKeyRef:
+                  name: wx-explore
+                  key: db-host
+            - name: POSTGRES_DB
+              valueFrom:
+                secretKeyRef:
+                  name: wx-explore
+                  key: db-name
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wx-explore-api
+spec:
+  selector:
+    app: wx-explore-api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 8080
+      targetPort: 8080
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wx-explore-api-http
+  namespace: default
+spec:
+  entryPoints:
+    - http
+  routes:
+  - match: Host(`api.vortexweather.tech`)
+    kind: Rule
+    services:
+    - name: wx-explore-api
+      port: 8080
+    middlewares:
+      - name: https-redirect
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wx-explore-api-tls
+  namespace: default
+spec:
+  entryPoints:
+    - https
+  routes:
+  - match: Host(`api.vortexweather.tech`)
+    kind: Rule
+    services:
+    - name: wx-explore-api
+      port: 8080
+  tls:
+    certResolver: default
+
