@@ -1,10 +1,11 @@
 from psycopg2 import connect, ProgrammingError
 from pq import PQ
-from pydoc import locate
 
 import os
 
-cfg = locate(os.environ.get('CONFIG') or 'wx_explore.web.config.DevConfig')
+from wx_explore.web import config
+
+cfg = config.Config
 
 pq = PQ(
     connect(

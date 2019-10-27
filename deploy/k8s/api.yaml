@@ -73,8 +73,6 @@ spec:
     services:
     - name: wx-explore-api
       port: 8080
-    middlewares:
-      - name: https-redirect
 
 ---
 apiVersion: traefik.containo.us/v1alpha1

@@ -1,0 +1,208 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-clean
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: wx-explore-clean
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.clean
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-name
+          restartPolicy: OnFailure
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-worker
+spec:
+  schedule: "*/5 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: wx-explore-worker
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.worker
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-name
+          restartPolicy: OnFailure
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-hrrr
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: wx-explore-hrrr
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.sources.hrrr
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-name
+          restartPolicy: OnFailure
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-gfs
+spec:
+  schedule: "0 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: wx-explore-gfs
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.sources.gfs
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-name
+          restartPolicy: OnFailure
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-nam
+spec:
+  schedule: "0 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: wx-explore-nam
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.sources.nam
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-name
+          restartPolicy: OnFailure
