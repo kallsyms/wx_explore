@@ -3,6 +3,9 @@
 * may be able to remove source id from source field? things seem to be named uniformly...
 * Move `db` instance out of `web`
 
+* api
+    * metrics, sources: change result to dict keyed off of id
+
 # Medium term
 * incorporate l2 radar into rta
     * streaming from https://registry.opendata.aws/noaa-nexrad/
