@@ -14,6 +14,11 @@ export default class App extends React.Component {
   };
 
   setLocation(loc) {
+    // onChange passes loc=null when the old selected entry is cleared
+    if (loc == null) {
+      return;
+    }
+
     this.setState({
       location: loc,
     });

@@ -3,7 +3,13 @@
 * may be able to remove source id from source field? things seem to be named uniformly...
 * Move `db` instance out of `web`
 
+* frontend
+    * dont shade under line
+    * unit conversions
+    * set transparency of line on how old run is
+    * shorten times to only show day when it changes (10:00p 11:00p 12:00a Tuesday, 1:00a, ...)
 * api
+    * GFS time conversions wrong?
     * metrics, sources: change result to dict keyed off of id
 
 # Medium term

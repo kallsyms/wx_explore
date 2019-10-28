@@ -45,38 +45,62 @@ export default class ForecastView extends React.Component {
   }
 
   componentDidUpdate(prevProps) {
-    if (prevProps.location != null && this.props.location.id === prevProps.location.id) {
-      return;
-    }
-
+    // only attempt to fetch when we have a location...
     if (this.props.location === undefined || this.props.location == null) {
       return;
     }
     
+    // ... or when location changed
+    if (prevProps.location != null && this.props.location.id === prevProps.location.id) {
+      return;
+    }
+
     this.getWx();
   }
 
   chartjsData() {
     let labels = [];
-    let metrics = {};
+    let metrics = {}; // map[metric_id, map[source_id, map[run_time, list]]] 
 
     for (const ts of this.state.wx.ordered_times) {
-      labels.push(moment.unix(ts).format("h:mA dddd Do")); // 8:15PM Tuesday 15th
+      labels.push(moment.unix(ts).format("h:mmA dddd Do")); // 8:15PM Tuesday 15th
       for (const data_point of this.state.wx.data[ts]) {
-        const metric_id = this.state.source_fields[data_point.src_field_id].metric_id;
-        if (!(metric_id in metrics)) {
-          metrics[metric_id] = {
-            label: this.state.metrics[metric_id].name,
-            data: []
-          };
+        const source_field = this.state.source_fields[data_point.src_field_id]
+        const metric = this.state.metrics[source_field.metric_id];
+        const source = this.state.sources[source_field.source_id];
+
+        if (!(metric.id in metrics)) {
+          metrics[metric.id] = {};
         }
-        metrics[metric_id].data.push(data_point.value);
+
+        if (!(source.id in metrics[metric.id])) {
+          metrics[metric.id][source.id] = {};
+        }
+
+        if (!(data_point.run_time in metrics[metric.id][source.id])) {
+          metrics[metric.id][source.id][data_point.run_time] = [];
+        }
+
+        metrics[metric.id][source.id][data_point.run_time].push(data_point.value);
       }
     }
 
-    let datasets = [];
-    for (const mid in metrics) {
-      datasets.push(metrics[mid]);
+    let datasets = {};
+    for (const metric_id in metrics) {
+      datasets[metric_id] = [];
+
+      for (const source_id in metrics[metric_id]) {
+        for (const run_time in metrics[metric_id][source_id]) {
+          const metric = this.state.metrics[metric_id];
+          const source = this.state.sources[source_id];
+          const run_name = moment.unix(run_time).format("h:mmA dddd Do") + " " + source.name;
+          datasets[metric_id].push({
+            label: run_name,
+            data: metrics[metric_id][source_id][run_time],
+            fill: false,
+          });
+        }
+      }
     }
 
     return {
@@ -90,10 +114,21 @@ export default class ForecastView extends React.Component {
       return null;
     }
 
+    let {labels, datasets} = this.chartjsData();
+    let charts = [];
+
+    for (const metric_id in datasets) {
+      const data = {
+        labels: labels,
+        datasets: datasets[metric_id],
+      };
+      charts.push(<LineChart data={data} />);
+    };
+
     return (
       <div>
       <span>{this.props.location.name}</span>
-      <LineChart data={this.chartjsData()} />
+      {charts}
       </div>
     );
   }
