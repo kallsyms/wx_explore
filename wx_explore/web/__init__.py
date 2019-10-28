@@ -11,9 +11,6 @@ app.config['SQLALCHEMY_DATABASE_URI'] = f"postgres://{app.config.get('POSTGRES_U
 from wx_explore.common.models import Base
 db = SQLAlchemy(app, model_class=Base)
 
-from flask_bootstrap import Bootstrap
-Bootstrap(app)
-
 from wx_explore.web.data.controller import api
 app.register_blueprint(api)
 

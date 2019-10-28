@@ -1,6 +1,5 @@
 flask
 flask_sqlalchemy
-flask_bootstrap
 psycopg2
 pq
 geoalchemy2
