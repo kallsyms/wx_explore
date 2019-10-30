@@ -13,7 +13,12 @@ export default class ForecastView extends React.Component {
   };
 
   getWx() {
-    Api.get("/location/" + this.props.location.id + "/wx").then(({data}) => this.setState({wx: data}));
+    let t = Math.round((new Date()).getTime() / 1000);
+    Api.get("/location/" + this.props.location.id + "/wx", {
+      params: {
+        end: t + (7 * 24 * 60 * 60),
+      },
+    }).then(({data}) => this.setState({wx: data}));
   }
 
   componentDidMount() {
@@ -59,11 +64,9 @@ export default class ForecastView extends React.Component {
   }
 
   chartjsData() {
-    let labels = [];
     let metrics = {}; // map[metric_id, map[source_id, map[run_time, list]]] 
 
     for (const ts of this.state.wx.ordered_times) {
-      labels.push(moment.unix(ts).format("h:mmA dddd Do")); // 8:15PM Tuesday 15th
       for (const data_point of this.state.wx.data[ts]) {
         const source_field = this.state.source_fields[data_point.src_field_id]
         const metric = this.state.metrics[source_field.metric_id];
@@ -81,7 +84,7 @@ export default class ForecastView extends React.Component {
           metrics[metric.id][source.id][data_point.run_time] = [];
         }
 
-        metrics[metric.id][source.id][data_point.run_time].push(data_point.value);
+        metrics[metric.id][source.id][data_point.run_time].push({x: new Date(ts * 1000), y: data_point.value});
       }
     }
 
@@ -91,7 +94,6 @@ export default class ForecastView extends React.Component {
 
       for (const source_id in metrics[metric_id]) {
         for (const run_time in metrics[metric_id][source_id]) {
-          const metric = this.state.metrics[metric_id];
           const source = this.state.sources[source_id];
           const run_name = moment.unix(run_time).format("h:mmA dddd Do") + " " + source.name;
           datasets[metric_id].push({
@@ -103,10 +105,7 @@ export default class ForecastView extends React.Component {
       }
     }
 
-    return {
-      labels,
-      datasets,
-    };
+    return datasets;
   }
 
   render() {
@@ -114,15 +113,37 @@ export default class ForecastView extends React.Component {
       return null;
     }
 
-    let {labels, datasets} = this.chartjsData();
+    let datasets = this.chartjsData();
     let charts = [];
 
+    const options = {
+      scales: {
+        xAxes: [{
+          type: 'time',
+          distribution: 'linear',
+          time: {
+            unit: 'hour',
+          },
+        }],
+      },
+      legend: {
+        display: false,
+      },
+    };
+
     for (const metric_id in datasets) {
+      const metric = this.state.metrics[metric_id];
       const data = {
-        labels: labels,
         datasets: datasets[metric_id],
       };
-      charts.push(<LineChart data={data} />);
+      let opts = {
+        ...options,
+        title: {
+          display: true,
+          text: metric.name,
+        },
+      };
+      charts.push(<LineChart data={data} options={opts}/>);
     };
 
     return (
