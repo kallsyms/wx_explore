@@ -4,6 +4,12 @@ import {Line as LineChart} from 'react-chartjs-2';
 
 import Api from './Api';
 
+const lineColors = {
+  'hrrr': '255,0,0',
+  'gfs':  '0,255,0',
+  'nam':  '0,0,255',
+};
+
 export default class ForecastView extends React.Component {
   state = {
     wx: null,
@@ -16,6 +22,7 @@ export default class ForecastView extends React.Component {
     let t = Math.round((new Date()).getTime() / 1000);
     Api.get("/location/" + this.props.location.id + "/wx", {
       params: {
+        start: t,
         end: t + (7 * 24 * 60 * 60),
       },
     }).then(({data}) => this.setState({wx: data}));
@@ -93,13 +100,34 @@ export default class ForecastView extends React.Component {
       datasets[metric_id] = [];
 
       for (const source_id in metrics[metric_id]) {
+        const source = this.state.sources[source_id];
+
+        let earliest_run = 0;
+        let latest_run = 0;
         for (const run_time in metrics[metric_id][source_id]) {
-          const source = this.state.sources[source_id];
+          if (earliest_run === 0 || run_time < earliest_run) {
+            earliest_run = run_time;
+          } else if (run_time > latest_run) {
+            latest_run = run_time;
+          }
+        }
+
+        for (const run_time in metrics[metric_id][source_id]) {
+          let alpha = 0.15;
+          if (run_time === latest_run) {
+            alpha = 0.8;
+          }
+
           const run_name = moment.unix(run_time).format("h:mmA dddd Do") + " " + source.name;
+          const color = 'rgba('+lineColors[source.short_name]+','+alpha+')';
+
           datasets[metric_id].push({
             label: run_name,
             data: metrics[metric_id][source_id][run_time],
             fill: false,
+            backgroundColor: color,
+            borderColor: color,
+            pointBorderColor: color,
           });
         }
       }
