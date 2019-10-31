@@ -1,13 +1,19 @@
+import datetime
 import logging
 import requests
-import time
 
 
 logger = logging.getLogger(__name__)
 
 
-def datetime2unix(dt):
-    return int(time.mktime(dt.timetuple()))
+def datetime2unix(dt: datetime.datetime) -> int:
+    """
+    Convert the given datetime `dt` to an integer unix timestamp.
+    If `dt` has no tz associated with it, it is assumed to be utc.
+    """
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=datetime.timezone.utc)
+    return int(dt.timestamp())
 
 
 def get_url(url, headers=None, retries=3):

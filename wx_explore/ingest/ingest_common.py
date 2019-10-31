@@ -1,7 +1,9 @@
 from scipy.spatial import cKDTree
 from shapely import wkb
+from sqlalchemy import Table, MetaData
 import gdal
 import gdalconst
+import json
 import logging
 import numpy
 import pygrib
@@ -157,11 +159,8 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
     if save_denormalized:
         logger.info("Saving denormalized location/time data for all layers")
 
-        from sqlalchemy import Table, MetaData
         ldtemp = Table("location_data_tmp", MetaData(), *[col.copy() for col in LocationData.__table__.columns], prefixes=['TEMPORARY'])
         ldtemp.create(db.session.connection())
-
-        import json
 
         stuff = [
             (str(loc_id), str(valid_time), json.dumps(values))
