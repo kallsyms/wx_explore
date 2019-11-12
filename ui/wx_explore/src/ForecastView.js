@@ -118,7 +118,7 @@ export default class ForecastView extends React.Component {
             alpha = 0.8;
           }
 
-          const run_name = moment.unix(run_time).format("h:mmA dddd Do") + " " + source.name;
+          const run_name = moment.unix(run_time).utc().format("HH[Z] dddd Do") + " " + source.name;
           const color = 'rgba('+lineColors[source.short_name]+','+alpha+')';
 
           datasets[metric_id].push({
@@ -171,7 +171,7 @@ export default class ForecastView extends React.Component {
           text: metric.name,
         },
       };
-      charts.push(<LineChart data={data} options={opts}/>);
+      charts.push(<LineChart key={metric.name} data={data} options={opts}/>);
     };
 
     return (
