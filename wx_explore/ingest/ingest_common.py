@@ -38,6 +38,12 @@ def get_location_index_map(grib_message, locations):
     :return: loc_id,x,y tuples for each given input location
     """
     lats, lons = grib_message.latlons()
+
+    # GFS (and maybe others) have lons that range 0-360 instead of -180 to 180.
+    # If found, transform them to match the standard range.
+    if lons.max() > 180:
+        lons = numpy.vectorize(lambda n: n if 0 <= n < 180 else n-360)(lons)
+
     shape = grib_message.values.shape
     tree = cKDTree(numpy.dstack([lons.ravel(), lats.ravel()])[0])
     for location in locations:
