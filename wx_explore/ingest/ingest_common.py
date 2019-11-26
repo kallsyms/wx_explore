@@ -39,19 +39,27 @@ def get_location_index_map(grib_message, locations):
     """
     lats, lons = grib_message.latlons()
 
+    latmin = lats.min()
+    latmax = lats.max()
+    lonmin = lons.min()
+    lonmax = lons.max()
+
     # GFS (and maybe others) have lons that range 0-360 instead of -180 to 180.
     # If found, transform them to match the standard range.
-    if lons.max() > 180:
+    if lonmax > 180:
         lons = numpy.vectorize(lambda n: n if 0 <= n < 180 else n-360)(lons)
+        lonmin = lons.min()
+        lonmax = lons.max()
 
     shape = grib_message.values.shape
     tree = cKDTree(numpy.dstack([lons.ravel(), lats.ravel()])[0])
     for location in locations:
         coords = wkb.loads(bytes(location.location.data))
-        idx = tree.query([coords.x, coords.y])[1]
-        x = idx % shape[1]
-        y = idx // shape[1]
-        yield (location.id, x, y)
+        if lonmin <= coords.x <= lonmax and latmin <= coords.y <= latmax:
+            idx = tree.query([coords.x, coords.y])[1]
+            x = idx % shape[1]
+            y = idx // shape[1]
+            yield (location.id, x, y)
 
 
 def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=True):
