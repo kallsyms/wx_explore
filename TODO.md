@@ -2,14 +2,15 @@
 * batch worker imports by source so DB upserts are more efficient
 * may be able to remove source id from source field? things seem to be named uniformly...
 * Move `db` instance out of `web`
+* add timezone to location table
+* add location alias table that is also searched but doesn't have distinct coordinates (just aliases to another location with coords)
+* add freezing rain (CFRZR), ice (CICEP), wind (WIND, WDIR), wind gust (GUST), snow depth (SNOD), total cloud cover (TCDC)
+    * https://www.nco.ncep.noaa.gov/pmb/docs/on388/table2.html
+    * look for precip rates?
 
 * frontend
-    * dont shade under line
     * unit conversions
-    * set transparency of line on how old run is
-    * shorten times to only show day when it changes (10:00p 11:00p 12:00a Tuesday, 1:00a, ...)
 * api
-    * GFS time conversions wrong?
     * metrics, sources: change result to dict keyed off of id
 
 # Medium term

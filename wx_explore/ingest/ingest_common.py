@@ -78,8 +78,8 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
     # Map of projection_id, location_id to (x,y)
     coordinate_luts = collections.defaultdict(dict)
 
-    # Build up a big array of loc_id -> {valid_time -> [values]}
-    loc_time_values = collections.defaultdict(lambda: collections.defaultdict(list))
+    # Build up a big array of loc_id -> {valid_time -> {(source_field_id, run_time) -> [values]}}
+    loc_time_values = collections.defaultdict(lambda: collections.defaultdict(dict))
 
     for msg in grib:
         field = SourceField.query.filter_by(
@@ -164,11 +164,23 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
 
             for loc_id, coords in coordinate_luts[field.projection.id].items():
                 if not numpy.ma.is_masked(grib_data) or not grib_data.mask[coords]:
-                    loc_time_values[loc_id][msg.validDate].append({
-                        "src_field_id": field.id,
-                        "run_time": datetime2unix(msg.analDate),
-                        "value": float(grib_data[coords]),
-                    })
+                    tv = loc_time_values[loc_id][msg.validDate]
+                    key = (field.id, msg.analDate)
+
+                    # This ensures that v['values'] always exists.
+                    # For simple models, this will only have 1 element, and v['value'] will also exist.
+                    # For ensemble models, this will contain all values in each ensemble run, and v['value'] will be removed.
+                    if key in tv:
+                        if 'value' in tv[key]:
+                            del tv[key]['value']
+                        tv[key]['values'].append(float(grib_data[coords]))
+                    else:
+                        tv[key] = {
+                            "src_field_id": field.id,
+                            "run_time": datetime2unix(msg.analDate),
+                            "value": float(grib_data[coords]),
+                            "values": [float(grib_data[coords])],
+                        })
 
     if save_denormalized:
         logger.info("Saving denormalized location/time data for all layers")
@@ -177,9 +189,9 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
         ldtemp.create(db.session.connection())
 
         stuff = [
-            (str(loc_id), str(valid_time), json.dumps(values))
+            (str(loc_id), str(valid_time), json.dumps([run_field_values.values()]))
             for loc_id, loc_id_values in loc_time_values.items()
-            for valid_time, values in loc_id_values.items()
+            for valid_time, run_field_values in loc_id_values.items()
         ]
 
         for i in range(0, len(stuff), 10000):

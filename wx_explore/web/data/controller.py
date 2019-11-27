@@ -1,13 +1,21 @@
 from flask import Blueprint, abort, jsonify, request
 from datetime import datetime, timedelta
 
-from wx_explore.common.utils import datetime2unix
+from wx_explore.analysis import (
+    combine_models,
+    cluster,
+    SummarizedData,
+    TemperatureEvent,
+    PrecipEvent,
+    WindEvent,
+)
 from wx_explore.common.models import (
     Source,
     Location,
     Metric,
     LocationData,
 )
+from wx_explore.common.utils import datetime2unix
 from wx_explore.web import app
 
 
@@ -167,3 +175,60 @@ def wx_for_location(loc_id):
                 wx['data'][datetime2unix(data.valid_time)].append(data_point)
 
     return jsonify(wx)
+
+
+@api.route('/location/<int:loc_id>/wx/summarize')
+def summarize(loc_id):
+    """
+    Summarizes the weather in a natural way.
+    :param loc_id: The ID of the location to get weather for.
+    :return: A list of strings summarizing the weather. One per day.
+    """
+    location = Location.query.get_or_404(loc_id)
+
+    temp_sourcefield = SourceField.query(SourceField.source_id == , SourceField.metric.name == "2m Temperature").first()
+    rain_sourcefield = SourceField.query(SourceField.source_id == , SourceField.metric.name == "Raining").first()
+    snow_sourcefield = SourceField.query(SourceField.source_id == , SourceField.metric.name == "Snowing").first()
+    wind_sourcefield = SourceField.query(SourceField.source_id == , SourceField.metric.name == "Wind").first()
+
+    # TODO: This should be done relative to the location's local TZ
+    now = datetime.utcnow()
+    days = int(request.args.get('days', 7))
+
+    if days < 1:
+        days = 1
+    elif days > 7:
+        days = 7
+
+    summarizations = []
+
+    for d in range(days):
+        summary = SummarizedData()
+
+        loc_data = LocationData.query.filter(
+            LocationData.location_id == location.id,
+            LocationData.valid_time >= now + timedelta(days=d),
+            LocationData.valid_time < now + timedelta(days=d+1),
+        ).all()
+
+        model_loc_data = combine_models(loc_data)
+
+        for data in model_loc_data:
+            for data_point in data.values:
+                if data_point['src_field_id'] == temp_sourcefield.id:
+                    if data_point['value'] < summary.low.temperature:
+                        summary.low = TemperatureEvent(time=data.valid_time, temperature=data_point['value'])
+                    elif data_point['value'] > summary.high.temperature:
+                        summary.high = TemperatureEvent(time=data.valid_time, temperature=data_point['value'])
+
+        # TODO: extract intensity ('light', 'heavy') for rain/snow
+        rain_periods = [PrecipEvent(start, end, 'rain') for start, end, _ in cluster(model_loc_data, rain_sourcefield.id)]
+        snow_periods = [PrecipEvent(start, end, 'snow') for start, end, _ in cluster(model_loc_data, snow_sourcefield.id)]
+
+        summary.precip_events = sorted(rain_periods + snow_periods, key=lambda event: event.start)
+
+        summary.wind_events = [WindEvent(start, end, max(values)) for start, end, values in cluster(model_loc_data, wind_sourcefield.id, lambda v: v >= 30)]
+
+        summarizations.append(summary)
+
+    return jsonify(summarizations)
