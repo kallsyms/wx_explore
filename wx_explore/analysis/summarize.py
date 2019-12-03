@@ -3,13 +3,9 @@ from datetime import timedelta
 
 import collections
 
-from wx_explore.common.utils import memoize, RangeDict, TimeRange
-from wx_explore.common.models import Metric, LocationData
-
-
-@memoize
-def _get_metric(sfid: int) -> Metric:
-    return SourceField.query(SourceField.id == sfid).first().metric
+from wx_explore.analysis.helpers import get_metric
+from wx_explore.common.utils import RangeDict, TimeRange
+from wx_explore.common.models import LocationData
 
 
 def model_aggregator(loc_data_values) -> float:
@@ -33,7 +29,7 @@ def combine_models(loc_data: List[LocationData]) -> List[LocationData]:
         points_for_metric = collections.defaultdict(list)  # dictionary of metric id to list of data points
 
         for data_point in data.values:
-            metric = _get_metric(data_point['src_field_id'])
+            metric = get_metric(data_point['src_field_id'])
             points_for_metric[metric.id].append(data_point)
 
         combined_points = []
@@ -101,10 +97,6 @@ class TemperatureEvent(object):
     temperature: int
 
 
-class PrecipEvent(TimeRange):
-    precip_type: str
-
-
 class WindEvent(TimeRange):
     CLASSIFICATIONS = RangeDict({
         range(0, 15): 'light',
@@ -149,6 +141,10 @@ class SummarizedData(object):
             if pe2:
                 summary += f", changing into {pe2.precip_type} around {pe2.start.hour}"
         else:
+            sky_cond = self.cloud_cover[time]
+            end_time = time_of_day(sky_cond.end)
+            if sky_cond.end.hour > 17:
+                end_time = "day"
             summary += f"{sky_cond.cover} through the {time_of_day(sky_cond.end)}"
             pe = self.precip_events.get_any(time, sky_cond.end + 1)
             if pe:
@@ -159,3 +155,11 @@ class SummarizedData(object):
             # TODO: sky cond + wind
 
         return summary
+
+    def dict(self):
+        return {
+            "high": self.high.dict(),
+            "low": self.low.dict(),
+            "precip_events": [pe.dict() for pe in self.precip_events],
+            "wind_events": [we.dict() for we in self.wind_events],
+            "cloud_cover": [pe.dict() for pe in self.precip_events],

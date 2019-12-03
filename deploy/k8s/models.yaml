@@ -51,6 +51,7 @@ spec:
   startingDeadlineSeconds: 300
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 900
       template:
         spec:
           restartPolicy: Never

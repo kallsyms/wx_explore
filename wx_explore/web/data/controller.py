@@ -229,6 +229,6 @@ def summarize(loc_id):
 
         summary.wind_events = [WindEvent(start, end, max(values)) for start, end, values in cluster(model_loc_data, wind_sourcefield.id, lambda v: v >= 30)]
 
-        summarizations.append(summary)
+        summarizations.append(summary.dict())
 
     return jsonify(summarizations)

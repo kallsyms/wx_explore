@@ -19,7 +19,6 @@ from wx_explore.common.models import (
 )
 from wx_explore.common.utils import datetime2unix
 from wx_explore.common.queue import pq
-from wx_explore.ingest import reduce_grib
 from wx_explore.ingest.raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
 from wx_explore.web import db
 
@@ -81,14 +80,23 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
     # Build up a big array of loc_id -> {valid_time -> {(source_field_id, run_time) -> [values]}}
     loc_time_values = collections.defaultdict(lambda: collections.defaultdict(dict))
 
-    for msg in grib:
-        field = SourceField.query.filter_by(
-            source_id=source.id,
-            grib_name=msg.name,
-        ).first()
-
-        if field is None:
+    for field in SourceField.query.filter_by(source_id=source.id).all():
+        try:
+            msgs = grib.select(name=field.grib_name)
+        except ValueError:
+            logger.warn("GRIB has no fields named '%s'", field.grib_name)
             continue
+
+        msg = msgs[0]
+        if len(msgs) > 1:
+            # Have more than one message with the field name - could be average vs. instantaneous.
+            # Attempt to find average field, otherwise just default to first
+            for m in msgs:
+                if 'stepTypeInternal' in m.keys() and m.stepTypeInternal == 'avg':
+                    msg = m
+                    break
+            else:
+                logger.info("Multiple messages match field name '%s': %s", field.grib_name, msgs)
 
         logger.info("Processing message '%s' (field '%s')", msg, field.grib_name)
 
@@ -194,19 +202,15 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
             for valid_time, run_field_values in loc_id_values.items()
         ]
 
-        for i in range(0, len(stuff), 10000):
-            db.session.execute("INSERT INTO location_data_tmp VALUES " + ",".join("('" + "','".join(s) + "')" for s in stuff[i:i+10000]))
-
-        # XXX: For some reason this doesn't seem to be doing a bulk insert?
-        # db.session.execute(ldtemp.insert(), [
-        #     {
-        #         "location_id": loc_id,
-        #         "valid_time": valid_time,
-        #         "values": values,
-        #     }
-        #     for loc_id, loc_id_values in loc_time_values.items()
-        #     for valid_time, values in loc_id_values.items()
-        # ])
+        db.session.bulk_insert_mappings(ldtemp, [
+            {
+                "location_id": loc_id,
+                "valid_time": valid_time,
+                "values": values,
+            }
+            for loc_id, loc_id_values in loc_time_values.items()
+            for valid_time, values in loc_id_values.items()
+        ])
 
         db.session.execute("INSERT INTO location_data SELECT * FROM location_data_tmp ON CONFLICT (location_id, valid_time) DO UPDATE SET values = location_data.values || excluded.values")
 
