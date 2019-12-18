@@ -1,10 +1,12 @@
-from flask import Blueprint, abort, jsonify, request
 from datetime import datetime, timedelta
+from flask import Blueprint, abort, jsonify, request
+from sqlalchemy import or_
 
 from wx_explore.common.utils import datetime2unix
 from wx_explore.common.models import (
     Source,
     Location,
+    LocationName,
     Metric,
     LocationData,
 )
@@ -66,10 +68,13 @@ def get_location_from_query():
         abort(400)
 
     # Fixes basic weird results that could come from users entering '\'s, '%'s, or '_'s
-    search = search.replace('\\', '\\\\').replace('_', '\_').replace('%', '\%')
-    search += '%'
+    search = '%' + search.replace('\\', '\\\\').replace('_', '\_').replace('%', '\%') + '%'
 
-    query = Location.query.filter(Location.name.ilike(search)).limit(10)
+    query = Location.query.join(LocationName) \
+            .filter(LocationName.name.ilike(search)) \
+            .distinct(Location.id) \
+            .order_by(LocationName.population.desc()) \
+            .limit(10)
 
     return jsonify([l.serialize() for l in query.all()])
 

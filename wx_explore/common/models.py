@@ -94,13 +94,11 @@ class SourceField(Base):
 class Location(Base):
     """
     A specific location that we have a lat/lon for.
-    Currently just zipcodes.
     """
     __tablename__ = "location"
 
     id = Column(Integer, primary_key=True)
     location = Column(Geography('Point,4326'))
-    name = Column(String(512))
 
     def get_coords(self):
         """
@@ -116,11 +114,23 @@ class Location(Base):
             "id": self.id,
             "lon": coords[0],
             "lat": coords[1],
-            "name": self.name,
         }
 
     def __repr__(self):
         return f"<Location id={self.id} name='{self.name}'>"
+
+
+class LocationName(Base):
+    """
+    A name for a Location. Could be things like ZIP code, city name, etc.
+    """
+    __tablename__ = "location_name"
+    id = Column(Integer, primary_key=True)
+    location_id = Column(Integer, ForeignKey('location.id'))
+    name = Column(String(512))
+    population = Column(Integer)
+
+    location = relationship('Location', backref='names')
 
 
 class Projection(Base):
