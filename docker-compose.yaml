@@ -13,9 +13,9 @@ services:
         depends_on:
             - db
         environment:
-            - POSTGRES_USER=wx
-            - POSTGRES_PASS=wx
-            - POSTGRES_DB=wx
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASS=postgres
+            - POSTGRES_DB=postgres
             - POSTGRES_HOST=db
         volumes:
             - ./:/opt/wx_explore

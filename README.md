@@ -27,16 +27,16 @@ as the average person who is just a bit curious about where their daily forecast
 
 # Setup
 
-## Config
+## Dev
 
-Put something like the following in `wx_explore/web/config.py`
+Basically just
 
-```python
-import os
-
-class DevConfig(object):
-    DEBUG = True
-    SECRET_KEY = "debug"
-    SQLALCHEMY_DATABASE_URI = 'postgres://wx:wx@localhost/wx'
-    SQLALCHEMY_TRACK_MODIFICATIONS = False
+```sh
+./dev.sh
+./seed.py
 ```
+
+`./dev.sh` will build everything into a docker image, create a postgres db, and drop you into a container.
+This container has the repo root mounted to `/opt/wx_explore` so code changes can be made on host and immediately tested in the container.
+
+`./seed.py` seeds the database with sources, metrics, and source fields necessary to import data.
