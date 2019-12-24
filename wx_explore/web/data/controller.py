@@ -10,7 +10,7 @@ from wx_explore.common.models import (
     Metric,
     FileBandMeta,
 )
-from wx_explore.common.location import get_xy_for_coord
+from wx_explore.common.location import get_xy_for_coord, proj_shape
 from wx_explore.common.utils import datetime2unix
 from wx_explore.web import app
 
@@ -90,21 +90,21 @@ def wx_for_location():
     if lat > 90 or lat < -90 or lon > 180 or lon < -180:
         abort(400)
 
-    requested_metrics = request.args.get('metrics')
+    requested_metrics = request.args.getlist('metrics')
 
     if requested_metrics:
-        metrics = [Metric.query.get(i) for i in requested_metrics.split(',')]
+        metrics = [Metric.query.get(i) for i in requested_metrics]
     else:
         metrics = Metric.query.all()
 
     now = datetime.utcnow()
-    start = request.args.get('start')
-    end = request.args.get('end')
+    start = request.args.get('start', type=int)
+    end = request.args.get('end', type=int)
 
     if start is None:
         start = now - timedelta(hours=1)
     else:
-        start = datetime.utcfromtimestamp(int(start))
+        start = datetime.utcfromtimestamp(start)
 
         if not app.debug:
             if start < now - timedelta(days=1):
@@ -113,7 +113,7 @@ def wx_for_location():
     if end is None:
         end = now + timedelta(hours=12)
     else:
-        end = datetime.utcfromtimestamp(int(end))
+        end = datetime.utcfromtimestamp(end)
 
         if not app.debug:
             if end > now + timedelta(days=7):
@@ -142,7 +142,7 @@ def wx_for_location():
     # TODO: do all of these in parallel since most time will probably be spent blocked on FIO
     for fm in file_metas:
         x, y = locs[fm.projection.id]
-        proj_line_step = len(fm.projection.lons)
+        proj_line_step = proj_shape(fm.projection)[1]
         loc_chunks = y * proj_line_step + x
         with open(fm.file_name, 'rb') as f:
             f.seek(loc_chunks * fm.loc_size)

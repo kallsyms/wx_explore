@@ -2,7 +2,7 @@ from geoalchemy2 import Geography, Raster
 from shapely import wkb
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 
@@ -131,8 +131,8 @@ class Projection(Base):
 
     id = Column(Integer, primary_key=True)
     params = Column(JSONB, unique=True)
-    lats = Column(JSONB)
-    lons = Column(JSONB)
+    lats = deferred(Column(JSONB))
+    lons = deferred(Column(JSONB))
 
 
 class FileMeta(Base):
