@@ -3,19 +3,17 @@ import functools
 import numpy
 
 from wx_explore.common.models import (
-    SourceField,
     Projection,
 )
-from wx_explore.web import db
+from wx_explore.web import app, db
 
 
 lut_meta = {}
 
 
 def get_coordinate_lookup_meta(proj):
-    lats, lons = proj.latlons
-    lats = numpy.array(lats)
-    lons = numpy.array(lons)
+    lats = numpy.array(proj.lats)
+    lons = numpy.array(proj.lons)
 
     # GFS (and maybe others) have lons that range 0-360 instead of -180 to 180.
     # If found, transform them to match the standard range.
@@ -45,25 +43,21 @@ def get_lookup_meta(proj):
     return lut_meta[proj.id]
 
 
-def get_xy_for_coord(source_field_id, coords):
+def get_xy_for_coord(proj, coords):
     """
-    Returns the proj_id,x,y for a given (lat, lon) coordinate
+    Returns the x,y for a given (lat, lon) coordinate on the given projection
     """
     if lut_meta is None:
         preload_coordinate_lookup_meta()
 
-    sf = SourceField.query.get(source_field_id)
-    if sf is None:
-        raise ValueError("No such source field")
-
-    projlats, projlons, tree = get_lookup_meta(sf.projection)
+    projlats, projlons, tree = get_lookup_meta(proj)
 
     lat, lon = coords
-    if lons.min() <= lon <= lons.max() and lats.min() <= lat <= lats.max():
+    if projlons.min() <= lon <= projlons.max() and projlats.min() <= lat <= projlats.max():
         idx = tree.query([lon, lat])[1]
-        x = idx % len(lons)
-        y = idx // len(lons)
-        return (sf.projection_id, x, y)
+        x = idx % len(projlons)
+        y = idx // len(projlons)
+        return (x, y)
 
     return None
 

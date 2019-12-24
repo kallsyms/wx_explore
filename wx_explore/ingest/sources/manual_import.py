@@ -15,14 +15,14 @@ logging.basicConfig(level=logging.DEBUG,
 logging.getLogger('raster2pgsql').setLevel(logging.INFO)
 
 if len(sys.argv) < 3:
-    print(f"Usage: {sys.argv[0]} source_name files...", file=sys.stderr)
+    print(f"Usage: {sys.argv[0]} source_short_name files...", file=sys.stderr)
     sys.exit(1)
 
+# E.g. "hrrr"
 src_name = sys.argv[1]
 files = sys.argv[2:]
 
-# E.g. "HRRR 2D Surface Data (Sub-Hourly)"
-src = Source.query.filter_by(name=src_name).first()
+src = Source.query.filter_by(short_name=src_name).first()
 
 if src is None:
     raise Exception(f"Invalid source {src_name}")

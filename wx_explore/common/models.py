@@ -125,47 +125,50 @@ class Location(Base):
 
 class Projection(Base):
     """
-    Table that maps project params to a unique ID for use in CoordinateLookup
+    Table that holds data about the projection a given ingested file uses.
     """
     __tablename__ = "projection"
 
     id = Column(Integer, primary_key=True)
     params = Column(JSONB, unique=True)
-    latlons = Column(JSONB)
+    lats = Column(JSONB)
+    lons = Column(JSONB)
 
 
-class DataRaster(Base):
+class FileMeta(Base):
     """
-    Table that holds the "raw" raster data.
+    Table that holds metadata about denormalized data in a given file.
+
+    Each file can hold any data (different fields, different sources even) as long
+    as it has a single projection.
     """
-    __tablename__ = "data_raster"
-
-    source_field_id = Column(Integer, ForeignKey('source_field.id'), primary_key=True)
-    valid_time = Column(DateTime, primary_key=True)
-    run_time = Column(DateTime, primary_key=True)
-    row = Column(Integer, primary_key=True)
-    rast = Column(Raster)
-
-    src_field = relationship('SourceField')
-
-    def __repr__(self):
-        return f"<DataRaster source_field_id={self.source_field_id} valid_time={self.valid_time} run_time={self.run_time} row={self.row}>"
-
-
-class PointData(Base):
-    """
-    Table that holds all denormalized data for a given location (defined as x,y in a projection)
-    and valid time.
-
-    The data stored is a JSON list of objects, each have the SourceField they come from,
-    the run time of the model, and the actual field value.
-    """
-    __tablename__ = "point_data"
-
-    projection_id = Column(Integer, ForeignKey('projection.id'), primary_key=True)
-    x = Column(Integer, primary_key=True)
-    y = Column(Integer, primary_key=True)
-    valid_time = Column(DateTime, primary_key=True)
-    values = Column(JSONB)
+    __tablename__ = "file_meta"
+    file_name = Column(String(4096), primary_key=True)
+    projection_id = Column(Integer, ForeignKey('projection.id'))
+    loc_size = Column(Integer)
 
     projection = relationship('Projection')
+
+
+class FileBandMeta(Base):
+    """
+    Table that holds data about specific runs of denormalized data in the given file.
+    """
+    __tablename__ = "file_band_meta"
+
+    # TODO: on delete of file meta, delete these
+    # PKs
+    file_name = Column(String, ForeignKey('file_meta.file_name'), primary_key=True)
+    band_id = Column(Integer, primary_key=True)
+
+    # Metadata
+    source_field_id = Column(Integer, ForeignKey('source_field.id'))
+    valid_time = Column(DateTime)
+    run_time = Column(DateTime)
+
+    # Metadata used to seek into the file
+    offset = Column(Integer)  # offset within a (x,y) chunk, _not_ offset in the entire file
+    vals_per_loc = Column(Integer)
+
+    file_meta = relationship('FileMeta')
+    source_field = relationship('SourceField')
