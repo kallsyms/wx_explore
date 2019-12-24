@@ -131,21 +131,7 @@ class Projection(Base):
 
     id = Column(Integer, primary_key=True)
     params = Column(JSONB, unique=True)
-
-
-class CoordinateLookup(Base):
-    """
-    Table that holds a lookup from location to grid x,y for the given projection.
-    """
-    __tablename__ = "coordinate_lookup"
-
-    projection_id = Column(Integer, ForeignKey('projection.id'), primary_key=True)
-    location_id = Column(Integer, ForeignKey('location.id'), primary_key=True)
-    x = Column(Integer)
-    y = Column(Integer)
-
-    projection = relationship('Projection')
-    location = relationship('Location')
+    latlons = Column(JSONB)
 
 
 class DataRaster(Base):
@@ -166,15 +152,20 @@ class DataRaster(Base):
         return f"<DataRaster source_field_id={self.source_field_id} valid_time={self.valid_time} run_time={self.run_time} row={self.row}>"
 
 
-class LocationData(Base):
+class PointData(Base):
     """
-    Table that holds denormalized data for a given location.
+    Table that holds all denormalized data for a given location (defined as x,y in a projection)
+    and valid time.
 
     The data stored is a JSON list of objects, each have the SourceField they come from,
     the run time of the model, and the actual field value.
     """
-    __tablename__ = "location_data"
+    __tablename__ = "point_data"
 
-    location_id = Column(Integer, ForeignKey('location.id'), primary_key=True)
+    projection_id = Column(Integer, ForeignKey('projection.id'), primary_key=True)
+    x = Column(Integer, primary_key=True)
+    y = Column(Integer, primary_key=True)
     valid_time = Column(DateTime, primary_key=True)
     values = Column(JSONB)
+
+    projection = relationship('Projection')

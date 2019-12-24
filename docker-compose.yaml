@@ -1,0 +1,23 @@
+version: '3.1'
+
+services:
+    db:
+        image: postgres:11
+        restart: always
+        expose:
+            - 5432
+
+    wx_explore:
+        image: kallsyms/wx_explore:latest
+        restart: always
+        depends_on:
+            - db
+        environment:
+            - POSTGRES_USER=wx
+            - POSTGRES_PASS=wx
+            - POSTGRES_DB=wx
+            - POSTGRES_HOST=db
+        volumes:
+            - ./:/opt/wx_explore
+        ports:
+            - 8080:8080

@@ -1,9 +1,8 @@
-from scipy.spatial import cKDTree
 from shapely import wkb
 from sqlalchemy import Table, MetaData
+from sqlalchemy.orm import mapper
 import gdal
 import gdalconst
-import json
 import logging
 import numpy
 import pygrib
@@ -11,11 +10,10 @@ import collections
 
 from wx_explore.common.models import (
     SourceField,
-    CoordinateLookup,
     Projection,
     DataRaster,
     Location,
-    LocationData,
+    PointData,
 )
 from wx_explore.common.utils import datetime2unix
 from wx_explore.common.queue import pq
@@ -30,38 +28,6 @@ def get_queue():
     return pq['ingest']
 
 
-def get_location_index_map(grib_message, locations):
-    """
-    Generates grid coordinates for each location in locations from the given GRIB message
-    :param grib_message: The GRIB message for which the coordinates should be generated
-    :param locations: List of locations for which indexes should be generated
-    :return: loc_id,x,y tuples for each given input location
-    """
-    lats, lons = grib_message.latlons()
-
-    latmin = lats.min()
-    latmax = lats.max()
-    lonmin = lons.min()
-    lonmax = lons.max()
-
-    # GFS (and maybe others) have lons that range 0-360 instead of -180 to 180.
-    # If found, transform them to match the standard range.
-    if lonmax > 180:
-        lons = numpy.vectorize(lambda n: n if 0 <= n < 180 else n-360)(lons)
-        lonmin = lons.min()
-        lonmax = lons.max()
-
-    shape = grib_message.values.shape
-    tree = cKDTree(numpy.dstack([lons.ravel(), lats.ravel()])[0])
-    for location in locations:
-        coords = wkb.loads(bytes(location.location.data))
-        if lonmin <= coords.x <= lonmax and latmin <= coords.y <= latmax:
-            idx = tree.query([coords.x, coords.y])[1]
-            x = idx % shape[1]
-            y = idx // shape[1]
-            yield (location.id, x, y)
-
-
 def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=True):
     """
     Ingests a given GRIB file into the backend
@@ -74,12 +40,11 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
     grib = pygrib.open(file_path)
     ds = gdal.Open(file_path, gdalconst.GA_ReadOnly)
 
-    # Cache coordinate lookup tables so they can be reused
-    # Map of projection_id, location_id to (x,y)
-    coordinate_luts = collections.defaultdict(dict)
-
-    # Build up a big array of loc_id -> {valid_time -> [values]}
-    loc_time_values = collections.defaultdict(lambda: collections.defaultdict(list))
+    # Keeps all data points that we'll be inserting at the end.
+    # Map of (proj_id, x, y, valid_time) -> {Map of (field_id, analysisDate) -> JSON}
+    # The second layer of indirection is needed for things like ensemble forecasts where a given
+    # (field_id, analysisDate) is not unique and all data values must be preserved for later stats
+    data_points = collections.defaultdict(dict)
 
     for msg in grib:
         field = SourceField.query.filter_by(
@@ -100,38 +65,13 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
             if projection is None:
                 projection = Projection(
                     params=msg.projparams,
+                    latlons=list(map(numpy.ndarray.tolist, msg.latlons())),
                 )
                 db.session.add(projection)
                 db.session.commit()
 
             field.projection_id = projection.id
             db.session.commit()
-
-        if field.projection.id not in coordinate_luts:
-            # Ensure the location->coordinate lookup table has been created in-DB for this field
-            if CoordinateLookup.query.filter_by(projection_id=field.projection.id).count() == 0:
-                logger.info("Generating coordinate lookup table for projection with params '%s'", field.projection.params)
-                entries = []
-                for loc_id, x, y in get_location_index_map(msg, Location.query.all()):
-                    # Create the DB object
-                    lookup_entry = CoordinateLookup()
-                    lookup_entry.projection_id = field.projection.id
-                    lookup_entry.location_id = loc_id
-                    lookup_entry.x = x
-                    lookup_entry.y = y
-                    entries.append(lookup_entry)
-
-                    # And cache locally
-                    coordinate_luts[field.projection.id][loc_id] = (y, x)
-
-                db.session.bulk_save_objects(entries)
-                db.session.commit()
-            else:
-                # lookup table is in DB, but not cached locally yet
-                for entry in CoordinateLookup.query.filter_by(projection_id=field.projection.id).all():
-                    coordinate_luts[field.projection.id][entry.location_id] = (entry.y, entry.x)
-
-            logger.info("Coordinate lookup table loaded")
 
         if save_rasters:
             logger.info(f"Saving raster data for {field}")
@@ -162,44 +102,42 @@ def ingest_grib_file(file_path, source, save_rasters=False, save_denormalized=Tr
         if save_denormalized:
             grib_data = msg.values
 
-            for loc_id, coords in coordinate_luts[field.projection.id].items():
-                if not numpy.ma.is_masked(grib_data) or not grib_data.mask[coords]:
-                    loc_time_values[loc_id][msg.validDate].append({
-                        "src_field_id": field.id,
-                        "run_time": datetime2unix(msg.analDate),
-                        "value": float(grib_data[coords]),
-                    })
+            for y in range(grib_data.shape[0]):
+                for x in range(grib_data.shape[1]):
+                    if not numpy.ma.is_masked(grib_data) or not grib_data.mask[(y,x)]:
+                        pts = data_points[(field.projection.id, x, y, msg.validDate)]
+                        key = (field.id, datetime2unix(msg.analDate))
+                        if key not in pts:
+                            pts[key] = {
+                                "src_field_id": field.id,
+                                "run_time": datetime2unix(msg.analDate),
+                                "values": [],
+                            }
+                        pts[key]["values"].append(float(grib_data[(y,x)]))
 
     if save_denormalized:
         logger.info("Saving denormalized location/time data for all layers")
 
-        ldtemp = Table("location_data_tmp", MetaData(), *[col.copy() for col in LocationData.__table__.columns], prefixes=['TEMPORARY'])
-        ldtemp.create(db.session.connection())
+        pdtemp = Table("point_data_tmp", MetaData(), *[col.copy() for col in PointData.__table__.columns], prefixes=['TEMPORARY'])
+        pdtemp.create(db.session.connection())
 
-        stuff = [
-            (str(loc_id), str(valid_time), json.dumps(values))
-            for loc_id, loc_id_values in loc_time_values.items()
-            for valid_time, values in loc_id_values.items()
-        ]
+        items = list(data_points.items())
+        for batch in (items[i:i+10000] for i in range(0, len(items), 10000)):
+            db.session.execute(pdtemp.insert().values([
+                {
+                    "projection_id": proj_id,
+                    "x": x,
+                    "y": y,
+                    "valid_time": valid_time,
+                    "values": list(pts.values()),
+                }
+                for (proj_id, x, y, valid_time), pts in batch
+            ]))
 
-        for i in range(0, len(stuff), 10000):
-            db.session.execute("INSERT INTO location_data_tmp VALUES " + ",".join("('" + "','".join(s) + "')" for s in stuff[i:i+10000]))
-
-        # XXX: For some reason this doesn't seem to be doing a bulk insert?
-        # db.session.execute(ldtemp.insert(), [
-        #     {
-        #         "location_id": loc_id,
-        #         "valid_time": valid_time,
-        #         "values": values,
-        #     }
-        #     for loc_id, loc_id_values in loc_time_values.items()
-        #     for valid_time, values in loc_id_values.items()
-        # ])
-
-        db.session.execute("INSERT INTO location_data SELECT * FROM location_data_tmp ON CONFLICT (location_id, valid_time) DO UPDATE SET values = location_data.values || excluded.values")
+        db.session.execute("INSERT INTO point_data SELECT * FROM point_data_tmp ON CONFLICT (projection_id, x, y, valid_time) DO UPDATE SET values = point_data.values || excluded.values")
 
         db.session.commit()
-        ldtemp.drop(db.session.connection())
+        pdtemp.drop(db.session.connection())
         db.session.commit()
 
         logger.info("Done saving denormalized data")

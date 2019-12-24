@@ -17,3 +17,6 @@ from wx_explore.web.data.controller import api
 app.register_blueprint(api)
 
 db.create_all()
+
+from wx_explore.common.location import preload_coordinate_lookup_meta
+preload_coordinate_lookup_meta()

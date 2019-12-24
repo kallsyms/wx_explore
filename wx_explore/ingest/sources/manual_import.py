@@ -4,8 +4,9 @@ import logging
 import tempfile
 import os
 
-from wx_explore.ingest.ingest_common import get_grib_ranges, ingest_grib_file
-from wx_explore.web.data.models import Source
+from wx_explore.ingest.ingest_common import ingest_grib_file
+from wx_explore.ingest.reduce_grib import get_grib_ranges
+from wx_explore.common.models import Source
 
 
 logging.basicConfig(level=logging.DEBUG,
@@ -28,7 +29,7 @@ if src is None:
 
 for f in files:
     with open(f + '.idx', 'r') as index:
-        ranges = get_grib_ranges(index.read(), src)
+        ranges = get_grib_ranges(index.read(), src.fields[:1])
 
     with tempfile.NamedTemporaryFile() as reduced:
         with open(f, 'rb') as src_grib:
