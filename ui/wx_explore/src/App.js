@@ -2,7 +2,6 @@ import React from 'react';
 import Navbar from 'react-bootstrap/Navbar';
 import Form from 'react-bootstrap/Form';
 
-import Api from './Api';
 import LocationSearchField from './LocationSearch';
 import ForecastView from './ForecastView';
 
@@ -33,7 +32,7 @@ export default class App extends React.Component {
       const lat = position.coords.latitude;
       const lon = position.coords.longitude;
 
-      Api.get("/location/by_coords", {params: {lat, lon}}).then(({data}) => {this.setLocation(data)})
+      this.setLocation({lat, lon});
     });
   }
 
