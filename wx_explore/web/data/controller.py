@@ -3,11 +3,11 @@ from flask import Blueprint, abort, jsonify, request
 
 import array
 import collections
+import sqlalchemy
 
 from wx_explore.common.models import (
     Source,
     Location,
-    LocationName,
     Metric,
     FileBandMeta,
 )
@@ -72,12 +72,12 @@ def get_location_from_query():
         abort(400)
 
     # Fixes basic weird results that could come from users entering '\'s, '%'s, or '_'s
-    search = '%' + search.replace('\\', '\\\\').replace('_', '\_').replace('%', '\%') + '%'
+    search = search.replace('\\', '\\\\').replace('_', '\_').replace('%', '\%')
+    search = search.lower()
 
-    query = Location.query.join(LocationName) \
-            .filter(LocationName.name.ilike(search)) \
-            .distinct(Location.id) \
-            .order_by(LocationName.population.desc()) \
+    query = Location.query \
+            .filter(sqlalchemy.func.lower(sqlalchemy.func.replace(Location.name, ',', '')).like('%' + search + '%')) \
+            .order_by(Location.population.desc().nullslast()) \
             .limit(10)
 
     return jsonify([l.serialize() for l in query.all()])

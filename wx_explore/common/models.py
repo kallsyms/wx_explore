@@ -100,6 +100,8 @@ class Location(Base):
 
     id = Column(Integer, primary_key=True)
     location = Column(Geography('Point,4326'))
+    name = Column(String(512))
+    population = Column(Integer)
 
     def get_coords(self):
         """
@@ -113,25 +115,13 @@ class Location(Base):
 
         return {
             "id": self.id,
+            "name": self.name,
             "lon": coords[0],
             "lat": coords[1],
         }
 
     def __repr__(self):
         return f"<Location id={self.id} name='{self.name}'>"
-
-
-class LocationName(Base):
-    """
-    A name for a Location. Could be things like ZIP code, city name, etc.
-    """
-    __tablename__ = "location_name"
-    id = Column(Integer, primary_key=True)
-    location_id = Column(Integer, ForeignKey('location.id'))
-    name = Column(String(512))
-    population = Column(Integer)
-
-    location = relationship('Location', backref='names')
 
 
 class Projection(Base):

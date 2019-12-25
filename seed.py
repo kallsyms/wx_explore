@@ -107,12 +107,16 @@ with open("data/cities/worldcities.csv", encoding="utf8") as f:
     f.readline()  # skip header line
     rd = csv.reader(f)
     for row in rd:
-        name = row[0]
+        name = row[0] + ', ' + row[7]
         lat = float(row[2])
         lon = float(row[3])
+        population = None
+        if row[9]:
+            population = int(float(row[9]))
         locs.append(Location(
             name=name,
             location=wkt.dumps(Point(lon, lat)),
+            population=population,
         ))
 
 db.session.add_all(locs)
