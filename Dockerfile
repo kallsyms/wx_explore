@@ -19,6 +19,7 @@ RUN pip3 install -r requirements.txt
 
 COPY seed.py /opt/wx_explore
 COPY wx_explore /opt/wx_explore/wx_explore
+COPY data /opt/wx_explore/data
 
 EXPOSE 8080
 
