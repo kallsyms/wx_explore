@@ -4,6 +4,7 @@ from wx_explore.common.models import (
     Metric,
     Source,
     SourceField,
+    Location,
 )
 
 from wx_explore.web import db
@@ -76,4 +77,43 @@ source_fields = [
 ]
 
 db.session.add_all(source_fields)
+db.session.commit()
+
+
+###
+# Locations
+###
+import csv
+from shapely import wkt
+from shapely.geometry import Point
+
+locs = []
+
+with open("data/zipcodes/US.txt", encoding="utf8") as f:
+    rd = csv.reader(f, delimiter='\t', quotechar='"')
+    for row in rd:
+        if not row[3]:
+            continue
+
+        name = row[2] + ', ' + row[3] + ' (' + row[1] + ')'
+        lat = float(row[9])
+        lon = float(row[10])
+        locs.append(Location(
+            name=name,
+            location=wkt.dumps(Point(lon, lat)),
+        ))
+
+with open("data/cities/worldcities.csv", encoding="utf8") as f:
+    f.readline()  # skip header line
+    rd = csv.reader(f)
+    for row in rd:
+        name = row[0]
+        lat = float(row[2])
+        lon = float(row[3])
+        locs.append(Location(
+            name=name,
+            location=wkt.dumps(Point(lon, lat)),
+        ))
+
+db.session.add_all(locs)
 db.session.commit()
