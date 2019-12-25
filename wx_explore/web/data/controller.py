@@ -1,15 +1,19 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, abort, jsonify, request
-from sqlalchemy import or_
 
-from wx_explore.common.utils import datetime2unix
+import array
+import collections
+
 from wx_explore.common.models import (
     Source,
     Location,
     LocationName,
     Metric,
-    LocationData,
+    FileBandMeta,
 )
+from wx_explore.common.location import get_xy_for_coord, proj_shape
+from wx_explore.common.storage import get_s3_bucket
+from wx_explore.common.utils import datetime2unix
 from wx_explore.web import app
 
 
@@ -79,58 +83,33 @@ def get_location_from_query():
     return jsonify([l.serialize() for l in query.all()])
 
 
-@api.route('/location/by_coords')
-def get_location_from_coords():
+@api.route('/wx')
+def wx_for_location():
     """
-    Get the nearest location from a given lat, lon.
-    :return: The location.
+    Gets the weather for a specific location, optionally limiting by metric and time.
+    at that time.
     """
-
     lat = float(request.args['lat'])
     lon = float(request.args['lon'])
 
-    # TODO: may need to add distance limit if perf drops
-    location = Location.query.order_by(Location.location.distance_centroid('POINT({} {})'.format(lon, lat))).first()
+    if lat > 90 or lat < -90 or lon > 180 or lon < -180:
+        abort(400)
 
-    return jsonify(location.serialize())
-
-
-@api.route('/location/<int:loc_id>')
-def get_location(loc_id):
-    """
-    Get information about a specific location.
-    :param loc_id: The ID of the location to get information about.
-    :return: The location.
-    """
-    location = Location.query.get_or_404(loc_id)
-    return jsonify(location.serialize())
-
-
-@api.route('/location/<int:loc_id>/wx')
-def wx_for_location(loc_id):
-    """
-    Gets the weather for a specific location, optionally limiting by metric and time.
-    :param loc_id: The ID of the location to get weather for.
-    :return: An object mapping UNIX timestamp to a list of metrics representing the weather for the given location
-    at that time.
-    """
-    location = Location.query.get_or_404(loc_id)
-
-    requested_metrics = request.args.get('metrics')
+    requested_metrics = request.args.getlist('metrics')
 
     if requested_metrics:
-        metrics = [Metric.query.get(i) for i in requested_metrics.split(',')]
+        metrics = [Metric.query.get(i) for i in requested_metrics]
     else:
         metrics = Metric.query.all()
 
     now = datetime.utcnow()
-    start = request.args.get('start')
-    end = request.args.get('end')
+    start = request.args.get('start', type=int)
+    end = request.args.get('end', type=int)
 
     if start is None:
         start = now - timedelta(hours=1)
     else:
-        start = datetime.utcfromtimestamp(int(start))
+        start = datetime.utcfromtimestamp(start)
 
         if not app.debug:
             if start < now - timedelta(days=1):
@@ -139,36 +118,69 @@ def wx_for_location(loc_id):
     if end is None:
         end = now + timedelta(hours=12)
     else:
-        end = datetime.utcfromtimestamp(int(end))
+        end = datetime.utcfromtimestamp(end)
 
         if not app.debug:
             if end > now + timedelta(days=7):
                 end = now + timedelta(days=7)
 
-    # TODO: actually incorporate this into the filter below.
-    # select location_id, valid_time, array_to_json(array_agg(v.*)) as values from location_data ld, json_array_elements(values::json) v where (v->>'src_field_id')::int in (3) group by location_id, valid_time;
-    requested_source_field_ids = set()
+    requested_source_fields = set()
     for metric in metrics:
         for sf in metric.fields:
-            requested_source_field_ids.add(sf.id)
+            requested_source_fields.add(sf)
 
-    # Get all data points for the location and times specified.
-    # This is a dictionary mapping str(valid_time) -> list of metric values
-    loc_data = LocationData.query.filter(
-        LocationData.location_id == location.id,
-        LocationData.valid_time >= start,
-        LocationData.valid_time < end,
+    valid_source_fields = set()
+    locs = {}
+    for sf in requested_source_fields:
+        loc = get_xy_for_coord(sf.projection, (lat,lon))
+        if loc is not None:
+            locs[sf.projection.id] = loc
+            valid_source_fields.add(sf)
+
+    fbms = FileBandMeta.query.filter(
+        FileBandMeta.source_field_id.in_([sf.id for sf in valid_source_fields]),
+        FileBandMeta.valid_time >= start,
+        FileBandMeta.valid_time < end,
     ).all()
 
-    # wx['data'] is a dict of unix_time->metrics, where each metric may have multiple values from different sources
-    wx = {
-        'ordered_times': sorted(datetime2unix(data.valid_time) for data in loc_data),
-        'data': {datetime2unix(data.valid_time): [] for data in loc_data},
-    }
+    # Gather all files we need data from
+    file_metas = set(fbm.file_meta for fbm in fbms)
+    file_contents = {}
 
-    for data in loc_data:
-        for data_point in data.values:
-            if data_point['src_field_id'] in requested_source_field_ids:
-                wx['data'][datetime2unix(data.valid_time)].append(data_point)
+    # Read them in
+    # TODO: do all of these in parallel since most time will probably be spent blocked on FIO
+    s3 = get_s3_bucket()
+    for fm in file_metas:
+        x, y = locs[fm.projection.id]
+        n_x = proj_shape(fm.projection)[1]
+        loc_chunks = (y * n_x) + x
+
+        obj = s3.Object(fm.file_name)
+        start = loc_chunks * fm.loc_size
+        end = (loc_chunks + 1) * fm.loc_size
+        file_contents[fm.file_name] = obj.get(Range=f'bytes={start}-{end-1}')['Body'].read()
+
+    # filebandmeta -> values
+    data_points = {}
+
+    for fbm in fbms:
+        raw = file_contents[fbm.file_meta.file_name][fbm.offset:fbm.offset+(4*fbm.vals_per_loc)]
+        data_values = array.array("f", raw).tolist()
+        data_points[fbm] = data_values
+
+    # valid time -> data points
+    datas = collections.defaultdict(list)
+
+    for fbm, values in data_points.items():
+        datas[datetime2unix(fbm.valid_time)].append({
+            'run_time': datetime2unix(fbm.run_time),
+            'src_field_id': fbm.source_field_id,
+            'value': values[0],  # TODO
+        })
+
+    wx = {
+        'data': datas,
+        'ordered_times': sorted(datas.keys()),
+    }
 
     return jsonify(wx)

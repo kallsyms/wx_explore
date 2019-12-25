@@ -4,31 +4,32 @@ import logging
 import tempfile
 import os
 
-from wx_explore.ingest.ingest_common import get_grib_ranges, ingest_grib_file
-from wx_explore.web.data.models import Source
+from wx_explore.ingest.ingest_common import ingest_grib_file
+from wx_explore.ingest.reduce_grib import get_grib_ranges
+from wx_explore.common.models import Source
 
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
                     datefmt="%Y-%m-%d %H:%M:%S")
 logging.getLogger('raster2pgsql').setLevel(logging.INFO)
 
 if len(sys.argv) < 3:
-    print(f"Usage: {sys.argv[0]} source_name files...", file=sys.stderr)
+    print(f"Usage: {sys.argv[0]} source_short_name files...", file=sys.stderr)
     sys.exit(1)
 
+# E.g. "hrrr"
 src_name = sys.argv[1]
 files = sys.argv[2:]
 
-# E.g. "HRRR 2D Surface Data (Sub-Hourly)"
-src = Source.query.filter_by(name=src_name).first()
+src = Source.query.filter_by(short_name=src_name).first()
 
 if src is None:
     raise Exception(f"Invalid source {src_name}")
 
 for f in files:
     with open(f + '.idx', 'r') as index:
-        ranges = get_grib_ranges(index.read(), src)
+        ranges = get_grib_ranges(index.read(), src.fields[:1])
 
     with tempfile.NamedTemporaryFile() as reduced:
         with open(f, 'rb') as src_grib:
