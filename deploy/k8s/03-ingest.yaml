@@ -31,14 +31,39 @@ spec:
                     key: db-pass
               - name: POSTGRES_HOST
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-host
               - name: POSTGRES_DB
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
 
 ---
 apiVersion: batch/v1beta1
@@ -75,14 +100,39 @@ spec:
                     key: db-pass
               - name: POSTGRES_HOST
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-host
               - name: POSTGRES_DB
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
 
 ---
 apiVersion: batch/v1beta1
@@ -117,14 +167,39 @@ spec:
                     key: db-pass
               - name: POSTGRES_HOST
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-host
               - name: POSTGRES_DB
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
 
 ---
 apiVersion: batch/v1beta1
@@ -159,14 +234,39 @@ spec:
                     key: db-pass
               - name: POSTGRES_HOST
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-host
               - name: POSTGRES_DB
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
 
 ---
 apiVersion: batch/v1beta1
@@ -201,11 +301,36 @@ spec:
                     key: db-pass
               - name: POSTGRES_HOST
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-host
               - name: POSTGRES_DB
                 valueFrom:
-                  secretKeyRef:
+                  configMapKeyRef:
                     name: wx-explore
                     key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
