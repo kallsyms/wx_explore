@@ -1,24 +1,20 @@
-from shapely import wkb
-from sqlalchemy import Table, MetaData
-from sqlalchemy.orm import mapper
-import gdal
-import gdalconst
+from datetime import datetime, timedelta
+import collections
+import hashlib
 import logging
 import numpy
 import pygrib
-import collections
 
 from wx_explore.common.models import (
     SourceField,
     Projection,
-    Location,
     FileMeta,
     FileBandMeta,
 )
-from wx_explore.common.utils import datetime2unix
 from wx_explore.common.queue import pq
+from wx_explore.common.storage import get_s3_bucket
+from wx_explore.common.utils import datetime2unix
 from wx_explore.ingest import reduce_grib
-from wx_explore.ingest.raster2pgsql import make_options, wkblify_raster_header, wkblify_band_header, wkblify_band
 from wx_explore.web import db
 
 logger = logging.getLogger(__name__)
@@ -30,7 +26,7 @@ def get_queue():
 
 def ingest_grib_file(file_path, source):
     """
-    Ingests a given GRIB file into the backend
+    Ingests a given GRIB file into the backend.
     :param file_path: Path to the GRIB file
     :param source: Source object which denotes which source this data is from
     :return: None
@@ -38,7 +34,6 @@ def ingest_grib_file(file_path, source):
     logger.info("Processing GRIB file '%s'", file_path)
 
     grib = pygrib.open(file_path)
-    ds = gdal.Open(file_path, gdalconst.GA_ReadOnly)
 
     # Keeps all data points that we'll be inserting at the end.
     # Map of proj_id to map of {(field, valid_time, run_time) -> [msg, ...]}
@@ -55,7 +50,9 @@ def ingest_grib_file(file_path, source):
 
         if field.projection is None or field.projection.params != msg.projparams:
             projection = Projection.query.filter_by(
-                params=msg.projparams
+                params=msg.projparams,
+                lats=msg.latlons()[0].tolist(),
+                lons=msg.latlons()[1].tolist(),
             ).first()
 
             if projection is None:
@@ -79,31 +76,37 @@ def ingest_grib_file(file_path, source):
 
     for proj_id, fields in data_by_projection.items():
         logger.info("Processing projection %d: fields %s", proj_id, fields)
+        s3_file_name = hashlib.md5(f"{file_path}-{proj_id}".encode('utf-8')).hexdigest()
+
         fm = FileMeta(
-            file_name=f"/tmp/{proj_id}",
+            file_name=s3_file_name,
             projection_id=proj_id,
         )
         db.session.add(fm)
         db.session.commit()
-        with open(fm.file_name, 'wb') as denormalized_file:
-            offset = 0
-            for i, ((field_id, valid_time, run_time), msgs) in enumerate(fields.items()):
-                metas.append(FileBandMeta(
-                    file_name=denormalized_file.name,
-                    band_id=i,
-                    source_field_id=field_id,
-                    valid_time=valid_time,
-                    run_time=run_time,
-                    offset=offset,
-                    vals_per_loc=len(msgs),
-                ))
 
-                for msg in msgs:
-                    vals.extend(msg.values.astype(numpy.float32))
-                    offset += 4  # sizeof(float32)
+        offset = 0
+        for i, ((field_id, valid_time, run_time), msgs) in enumerate(fields.items()):
+            metas.append(FileBandMeta(
+                file_name=s3_file_name,
+                source_field_id=field_id,
+                valid_time=valid_time,
+                run_time=run_time,
+                offset=offset,
+                vals_per_loc=len(msgs),
+            ))
 
-            denormalized_file.write(numpy.stack(vals, axis=-1).tostring())
-            fm.loc_size = offset
+            for msg in msgs:
+                vals.extend(msg.values.astype(numpy.float32))
+                offset += 4  # sizeof(float32)
+
+        fm.loc_size = offset
+
+        s3 = get_s3_bucket()
+        s3.put_object(
+            Key=s3_file_name,
+            Body=numpy.stack(vals, axis=-1).tobytes(),
+        )
 
         db.session.add_all(metas)
         db.session.commit()

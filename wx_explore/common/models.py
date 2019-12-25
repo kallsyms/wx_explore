@@ -1,3 +1,4 @@
+from datetime import datetime
 from geoalchemy2 import Geography, Raster
 from shapely import wkb
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
@@ -145,6 +146,7 @@ class FileMeta(Base):
     __tablename__ = "file_meta"
     file_name = Column(String(4096), primary_key=True)
     projection_id = Column(Integer, ForeignKey('projection.id'))
+    ctime = Column(DateTime, default=datetime.utcnow)
     loc_size = Column(Integer)
 
     projection = relationship('Projection')
@@ -159,16 +161,15 @@ class FileBandMeta(Base):
     # TODO: on delete of file meta, delete these
     # PKs
     file_name = Column(String, ForeignKey('file_meta.file_name'), primary_key=True)
-    band_id = Column(Integer, primary_key=True)
+    offset = Column(Integer, primary_key=True)  # offset within a (x,y) chunk, _not_ offset in the entire file
+
+    # Metadata used to seek into the file
+    vals_per_loc = Column(Integer)
 
     # Metadata
     source_field_id = Column(Integer, ForeignKey('source_field.id'))
     valid_time = Column(DateTime)
     run_time = Column(DateTime)
 
-    # Metadata used to seek into the file
-    offset = Column(Integer)  # offset within a (x,y) chunk, _not_ offset in the entire file
-    vals_per_loc = Column(Integer)
-
-    file_meta = relationship('FileMeta')
+    file_meta = relationship('FileMeta', backref='bands')
     source_field = relationship('SourceField')

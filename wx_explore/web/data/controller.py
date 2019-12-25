@@ -1,8 +1,8 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, abort, jsonify, request
 
+import array
 import collections
-import struct
 
 from wx_explore.common.models import (
     Source,
@@ -11,6 +11,7 @@ from wx_explore.common.models import (
     FileBandMeta,
 )
 from wx_explore.common.location import get_xy_for_coord, proj_shape
+from wx_explore.common.storage import get_s3_bucket
 from wx_explore.common.utils import datetime2unix
 from wx_explore.web import app
 
@@ -124,12 +125,16 @@ def wx_for_location():
         for sf in metric.fields:
             requested_source_fields.add(sf)
 
+    valid_source_fields = set()
     locs = {}
     for sf in requested_source_fields:
-        locs[sf.projection.id] = get_xy_for_coord(sf.projection, (lat,lon))
+        loc = get_xy_for_coord(sf.projection, (lat,lon))
+        if loc is not None:
+            locs[sf.projection.id] = loc
+            valid_source_fields.add(sf)
 
     fbms = FileBandMeta.query.filter(
-        FileBandMeta.source_field_id.in_([sf.id for sf in requested_source_fields]),
+        FileBandMeta.source_field_id.in_([sf.id for sf in valid_source_fields]),
         FileBandMeta.valid_time >= start,
         FileBandMeta.valid_time < end,
     ).all()
@@ -140,20 +145,23 @@ def wx_for_location():
 
     # Read them in
     # TODO: do all of these in parallel since most time will probably be spent blocked on FIO
+    s3 = get_s3_bucket()
     for fm in file_metas:
         x, y = locs[fm.projection.id]
-        proj_line_step = proj_shape(fm.projection)[1]
-        loc_chunks = y * proj_line_step + x
-        with open(fm.file_name, 'rb') as f:
-            f.seek(loc_chunks * fm.loc_size)
-            file_contents[fm.file_name] = f.read(fm.loc_size)
+        n_x = proj_shape(fm.projection)[1]
+        loc_chunks = (y * n_x) + x
+
+        obj = s3.Object(fm.file_name)
+        start = loc_chunks * fm.loc_size
+        end = (loc_chunks + 1) * fm.loc_size
+        file_contents[fm.file_name] = obj.get(Range=f'bytes={start}-{end-1}')['Body'].read()
 
     # filebandmeta -> values
     data_points = {}
 
     for fbm in fbms:
         raw = file_contents[fbm.file_meta.file_name][fbm.offset:fbm.offset+(4*fbm.vals_per_loc)]
-        data_values = struct.unpack('<'+('f' * fbm.vals_per_loc), raw)
+        data_values = array.array("f", raw).tolist()
         data_points[fbm] = data_values
 
     # valid time -> data points

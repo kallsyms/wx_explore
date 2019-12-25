@@ -9,7 +9,7 @@ from wx_explore.ingest.reduce_grib import get_grib_ranges
 from wx_explore.common.models import Source
 
 
-logging.basicConfig(level=logging.DEBUG,
+logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
                     datefmt="%Y-%m-%d %H:%M:%S")
 logging.getLogger('raster2pgsql').setLevel(logging.INFO)

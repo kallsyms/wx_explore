@@ -43,12 +43,13 @@ def get_xy_for_coord(proj, coords):
     Returns the x,y for a given (lat, lon) coordinate on the given projection
     """
     projlats, projlons, tree = get_lookup_meta(proj)
+    projshape = proj_shape(proj)
 
     lat, lon = coords
     if projlons.min() <= lon <= projlons.max() and projlats.min() <= lat <= projlats.max():
         idx = tree.query([lon, lat])[1]
-        x = idx % len(projlons)
-        y = idx // len(projlons)
+        x = idx % projshape[1]
+        y = idx // projshape[1]
         return (x, y)
 
     return None
@@ -60,4 +61,5 @@ def proj_shape(proj):
     to avoid a lot of DB traffic.
     """
     lats, lons, _ = get_lookup_meta(proj)
-    return (len(lats), len(lons))
+    assert lats.shape == lons.shape
+    return lats.shape
