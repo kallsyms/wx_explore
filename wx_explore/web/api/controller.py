@@ -73,6 +73,7 @@ def get_location_from_query():
 
     # Fixes basic weird results that could come from users entering '\'s, '%'s, or '_'s
     search = search.replace('\\', '\\\\').replace('_', '\_').replace('%', '\%')
+    search = search.replace(',', '')
     search = search.lower()
 
     query = Location.query \
