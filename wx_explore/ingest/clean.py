@@ -13,14 +13,14 @@ from wx_explore.web import db
 
 
 def clean_old_datas():
-    max_age = datetime.utcnow() - timedelta(days=1)
+    oldest_time = datetime.utcnow() - timedelta(days=1)
 
-    FileBandMeta.query.filter(FileBandMeta.valid_time < max_age).delete()
+    FileBandMeta.query.filter(FileBandMeta.valid_time < oldest_time).delete()
     db.session.commit()
 
     files = FileMeta.query.filter(
         FileMeta.file_name.notin_(FileBandMeta.query.with_entities(FileBandMeta.file_name)),
-        FileMeta.ctime <= max_age,  # make sure we don't delete files being populated right now
+        FileMeta.ctime <= datetime.utcnow() - timedelta(hours=1),  # make sure we don't delete files being populated right now
     ).all()
 
     s3 = get_s3_bucket()
