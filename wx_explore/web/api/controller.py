@@ -132,10 +132,13 @@ def wx_for_location():
     valid_source_fields = set()
     locs = {}
     for sf in requested_source_fields:
+        if sf.projection is None:
+            continue
         loc = get_xy_for_coord(sf.projection, (lat,lon))
-        if loc is not None:
-            locs[sf.projection.id] = loc
-            valid_source_fields.add(sf)
+        if loc is None:
+            continue
+        locs[sf.projection.id] = loc
+        valid_source_fields.add(sf)
 
     fbms = FileBandMeta.query.filter(
         FileBandMeta.source_field_id.in_([sf.id for sf in valid_source_fields]),
