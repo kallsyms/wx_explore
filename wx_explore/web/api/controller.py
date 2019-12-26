@@ -164,7 +164,7 @@ def wx_for_location():
     data_points = {}
 
     for fbm in fbms:
-        raw = file_contents[fbm.file_meta.file_name][fbm.offset:fbm.offset+(4*fbm.vals_per_loc)]
+        raw = file_contents[fbm.file_name][fbm.offset:fbm.offset+(4*fbm.vals_per_loc)]
         data_values = array.array("f", raw).tolist()
         data_points[fbm] = data_values
 

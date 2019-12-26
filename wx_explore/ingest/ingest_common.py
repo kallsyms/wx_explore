@@ -71,10 +71,10 @@ def ingest_grib_file(file_path, source):
 
     logger.info("Saving denormalized location/time data for all messages")
 
-    metas = []
-    vals = []
-
     for proj_id, fields in data_by_projection.items():
+        metas = []
+        vals = []
+
         logger.info("Processing projection %d: fields %s", proj_id, fields)
         s3_file_name = hashlib.md5(f"{file_path}-{proj_id}".encode('utf-8')).hexdigest()
 
@@ -97,7 +97,7 @@ def ingest_grib_file(file_path, source):
             ))
 
             for msg in msgs:
-                vals.extend(msg.values.astype(numpy.float32))
+                vals.append(msg.values.astype(numpy.float32))
                 offset += 4  # sizeof(float32)
 
         fm.loc_size = offset
