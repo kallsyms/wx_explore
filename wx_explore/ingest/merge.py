@@ -30,7 +30,11 @@ def merge():
     # merge cycle.
     min_age = datetime.utcnow() - timedelta(hours=1)
 
-    small_files = FileMeta.query.filter(FileMeta.loc_size < max_size, FileMeta.ctime < min_age).all()
+    small_files = FileMeta.query.filter(
+        FileMeta.loc_size < max_size,
+        FileMeta.ctime < min_age,
+        FileMeta.file_name.in_(FileBandMeta.query.with_entities(FileBandMeta.file_name)),
+    ).all()
 
     proj_files = collections.defaultdict(list)
     for f in small_files:
