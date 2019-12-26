@@ -131,7 +131,7 @@ class Projection(Base):
     __tablename__ = "projection"
 
     id = Column(Integer, primary_key=True)
-    params = Column(JSONB, unique=True)
+    params = Column(JSONB)
     lats = deferred(Column(JSONB))
     lons = deferred(Column(JSONB))
 
