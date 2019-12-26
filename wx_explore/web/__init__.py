@@ -13,7 +13,7 @@ CORS(app)
 from wx_explore.common.models import Base
 db = SQLAlchemy(app, model_class=Base)
 
-from wx_explore.web.data.controller import api
+from wx_explore.web.api import api
 app.register_blueprint(api)
 
 db.create_all()
