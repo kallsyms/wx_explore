@@ -39,7 +39,19 @@ sources = {
         name='HRRR 2D Surface Data (Sub-Hourly)',
         src_url='http://www.nco.ncep.noaa.gov/pmb/products/hrrr/',
         last_updated=None,
-    )
+    ),
+    'nam': Source(
+        short_name='nam',
+        name='North American Model',
+        src_url='https://www.nco.ncep.noaa.gov/pmb/products/nam/',
+        last_updated=None,
+    ),
+    'gfs': Source(
+        short_name='gfs',
+        name='Global Forecast System',
+        src_url='https://www.nco.ncep.noaa.gov/pmb/products/gfs/',
+        last_updated=None,
+    ),
 }
 
 db.session.add_all(sources.values())
@@ -69,6 +81,64 @@ source_fields = [
     ),
     SourceField(
         source_id=sources['hrrr'].id,
+        idx_short_name='CSNOW',
+        metric_id=metrics['snow'].id,
+        idx_level='surface',
+        grib_name='Categorical snow',
+    ),
+
+    SourceField(
+        source_id=sources['nam'].id,
+        idx_short_name='TMP',
+        metric_id=metrics['tmp'].id,
+        idx_level='2 m above ground',
+        grib_name='2 metre temperature',
+    ),
+    SourceField(
+        source_id=sources['nam'].id,
+        idx_short_name='VIS',
+        metric_id=metrics['vis'].id,
+        idx_level='surface',
+        grib_name='Visibility',
+    ),
+    SourceField(
+        source_id=sources['nam'].id,
+        idx_short_name='CRAIN',
+        metric_id=metrics['rain'].id,
+        idx_level='surface',
+        grib_name='Categorical rain',
+    ),
+    SourceField(
+        source_id=sources['nam'].id,
+        idx_short_name='CSNOW',
+        metric_id=metrics['snow'].id,
+        idx_level='surface',
+        grib_name='Categorical snow',
+    ),
+
+    SourceField(
+        source_id=sources['gfs'].id,
+        idx_short_name='TMP',
+        metric_id=metrics['tmp'].id,
+        idx_level='2 m above ground',
+        grib_name='2 metre temperature',
+    ),
+    SourceField(
+        source_id=sources['gfs'].id,
+        idx_short_name='VIS',
+        metric_id=metrics['vis'].id,
+        idx_level='surface',
+        grib_name='Visibility',
+    ),
+    SourceField(
+        source_id=sources['gfs'].id,
+        idx_short_name='CRAIN',
+        metric_id=metrics['rain'].id,
+        idx_level='surface',
+        grib_name='Categorical rain',
+    ),
+    SourceField(
+        source_id=sources['gfs'].id,
         idx_short_name='CSNOW',
         metric_id=metrics['snow'].id,
         idx_level='surface',
