@@ -2,9 +2,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, abort, jsonify, request
 
 import array
-import boto3
 import collections
-import concurrent.futures
 import sqlalchemy
 
 from wx_explore.common.models import (
@@ -87,21 +85,6 @@ def get_location_from_query():
     return jsonify([l.serialize() for l in query.all()])
 
 
-def load_file_chunk(fm, coords):
-    x, y = coords
-
-    boto3_session = boto3.session.Session()
-    s3 = get_s3_bucket(boto3_session)
-    n_x = proj_shape(fm.projection)[1]
-    loc_chunks = (y * n_x) + x
-
-    obj = s3.Object(fm.file_name)
-    start = loc_chunks * fm.loc_size
-    end = (loc_chunks + 1) * fm.loc_size
-
-    return obj.get(Range=f'bytes={start}-{end-1}')['Body'].read()
-
-
 @api.route('/wx')
 def wx_for_location():
     """
@@ -176,11 +159,17 @@ def wx_for_location():
     file_contents = {}
 
     # Read them in
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(load_file_chunk, fm, locs[fm.projection_id]): fm for fm in file_metas}
-        for future in concurrent.futures.as_completed(futures):
-            fm = futures[future]
-            file_contents[fm.file_name] = future.result()
+    # TODO: do all of these in parallel since most time will probably be spent blocked on FIO
+    s3 = get_s3_bucket()
+    for fm in file_metas:
+        x, y = locs[fm.projection.id]
+        n_x = proj_shape(fm.projection)[1]
+        loc_chunks = (y * n_x) + x
+
+        obj = s3.Object(fm.file_name)
+        start = loc_chunks * fm.loc_size
+        end = (loc_chunks + 1) * fm.loc_size
+        file_contents[fm.file_name] = obj.get(Range=f'bytes={start}-{end-1}')['Body'].read()
 
     # filebandmeta -> values
     data_points = {}
