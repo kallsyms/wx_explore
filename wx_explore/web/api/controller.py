@@ -3,10 +3,12 @@ from flask import Blueprint, abort, jsonify, request
 
 import array
 import collections
+import concurrent.futures
 import sqlalchemy
 
 from wx_explore.common.models import (
     Source,
+    SourceField,
     Location,
     Metric,
     FileBandMeta,
@@ -84,6 +86,20 @@ def get_location_from_query():
     return jsonify([l.serialize() for l in query.all()])
 
 
+def load_file_chunk(fm, coords):
+    x, y = coords
+
+    s3 = get_s3_bucket()
+    n_x = proj_shape(fm.projection)[1]
+    loc_chunks = (y * n_x) + x
+
+    obj = s3.Object(fm.file_name)
+    start = loc_chunks * fm.loc_size
+    end = (loc_chunks + 1) * fm.loc_size
+
+    return obj.get(Range=f'bytes={start}-{end-1}')['Body'].read()
+
+
 @api.route('/wx')
 def wx_for_location():
     """
@@ -96,12 +112,12 @@ def wx_for_location():
     if lat > 90 or lat < -90 or lon > 180 or lon < -180:
         abort(400)
 
-    requested_metrics = request.args.getlist('metrics')
+    requested_metrics = request.args.getlist('metrics', int)
 
     if requested_metrics:
-        metrics = [Metric.query.get(i) for i in requested_metrics]
+        metric_ids = set(requested_metrics)
     else:
-        metrics = Metric.query.all()
+        metric_ids = Metric.query.with_entities(Metric.id)
 
     now = datetime.utcnow()
     start = request.args.get('start', type=int)
@@ -125,24 +141,21 @@ def wx_for_location():
             if end > now + timedelta(days=7):
                 end = now + timedelta(days=7)
 
-    requested_source_fields = set()
-    for metric in metrics:
-        for sf in metric.fields:
-            requested_source_fields.add(sf)
+    requested_source_fields = SourceField.query.options(
+        sqlalchemy.orm.joinedload(SourceField.projection)
+    ).filter(
+        SourceField.metric_id.in_(metric_ids),
+        SourceField.projection_id != None,
+    ).all()
 
-    valid_source_fields = set()
     locs = {}
     for sf in requested_source_fields:
-        if sf.projection is None:
+        if sf.projection.id in locs:
             continue
-        loc = get_xy_for_coord(sf.projection, (lat,lon))
-        if loc is None:
-            continue
-        locs[sf.projection.id] = loc
-        valid_source_fields.add(sf)
+        locs[sf.projection.id] = get_xy_for_coord(sf.projection, (lat,lon))
 
     fbms = FileBandMeta.query.filter(
-        FileBandMeta.source_field_id.in_([sf.id for sf in valid_source_fields]),
+        FileBandMeta.source_field_id.in_([sf.id for sf in requested_source_fields]),
         FileBandMeta.valid_time >= start,
         FileBandMeta.valid_time < end,
     ).all()
@@ -152,17 +165,11 @@ def wx_for_location():
     file_contents = {}
 
     # Read them in
-    # TODO: do all of these in parallel since most time will probably be spent blocked on FIO
-    s3 = get_s3_bucket()
-    for fm in file_metas:
-        x, y = locs[fm.projection.id]
-        n_x = proj_shape(fm.projection)[1]
-        loc_chunks = (y * n_x) + x
-
-        obj = s3.Object(fm.file_name)
-        start = loc_chunks * fm.loc_size
-        end = (loc_chunks + 1) * fm.loc_size
-        file_contents[fm.file_name] = obj.get(Range=f'bytes={start}-{end-1}')['Body'].read()
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        futures = {executor.submit(load_file_chunk, fm, locs[fm.projection_id]): fm for fm in file_metas}
+        for future in concurrent.futures.as_completed(futures):
+            fm = futures[future]
+            file_contents[fm.file_name] = future.result()
 
     # filebandmeta -> values
     data_points = {}

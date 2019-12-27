@@ -89,7 +89,7 @@ class SourceField(Base):
         }
 
     def __repr__(self):
-        return f"<SourceField id={self.id} name='{self.name}'>"
+        return f"<SourceField id={self.id} short_name='{self.idx_short_name}'>"
 
 
 class Location(Base):
@@ -171,5 +171,5 @@ class FileBandMeta(Base):
     valid_time = Column(DateTime)
     run_time = Column(DateTime)
 
-    file_meta = relationship('FileMeta', backref='bands')
+    file_meta = relationship('FileMeta', backref='bands', lazy='joined')
     source_field = relationship('SourceField')
