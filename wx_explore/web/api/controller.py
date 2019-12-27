@@ -2,6 +2,7 @@ from datetime import datetime, timedelta
 from flask import Blueprint, abort, jsonify, request
 
 import array
+import boto3
 import collections
 import concurrent.futures
 import sqlalchemy
@@ -89,7 +90,8 @@ def get_location_from_query():
 def load_file_chunk(fm, coords):
     x, y = coords
 
-    s3 = get_s3_bucket()
+    boto3_session = boto3.session.Session()
+    s3 = get_s3_bucket(boto3_session)
     n_x = proj_shape(fm.projection)[1]
     loc_chunks = (y * n_x) + x
 
