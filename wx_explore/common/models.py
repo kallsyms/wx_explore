@@ -1,5 +1,5 @@
 from datetime import datetime
-from geoalchemy2 import Geography, Raster
+from geoalchemy2 import Geography
 from shapely import wkb
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import JSONB

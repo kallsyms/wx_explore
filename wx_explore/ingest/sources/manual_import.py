@@ -2,7 +2,6 @@
 import sys
 import logging
 import tempfile
-import os
 
 from wx_explore.ingest.ingest_common import ingest_grib_file
 from wx_explore.ingest.reduce_grib import get_grib_ranges

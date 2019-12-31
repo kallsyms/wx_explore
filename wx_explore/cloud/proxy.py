@@ -6,7 +6,7 @@ from typing import Mapping, Optional, Any
 
 import base64
 import os
-import collections
+
 
 class HttpRequest(object):
     args: Mapping[str, str]
@@ -44,12 +44,12 @@ def proxy(cb, *args):
             method=az_req.method,
             headers=az_req.headers,
             args=az_req.params,
-            body=req.get_body()
+            body=az_req.get_body(),
         )
 
         resp = cb(req)
 
-        az_resp = azure.functions.HttpResponse(
+        return azure.functions.HttpResponse(
             status_code=resp.code,
             headers=resp.headers,
             body=resp.body,

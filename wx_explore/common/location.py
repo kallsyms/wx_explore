@@ -1,11 +1,9 @@
 from scipy.spatial import cKDTree
-import functools
 import numpy
 
 from wx_explore.common.models import (
     Projection,
 )
-from wx_explore.web import app, db
 
 
 lut_meta = {}

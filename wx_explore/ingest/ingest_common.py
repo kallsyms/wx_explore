@@ -1,4 +1,3 @@
-from datetime import datetime, timedelta
 import collections
 import hashlib
 import logging
@@ -13,8 +12,6 @@ from wx_explore.common.models import (
 )
 from wx_explore.common.queue import pq
 from wx_explore.common.storage import get_s3_bucket
-from wx_explore.common.utils import datetime2unix
-from wx_explore.ingest import reduce_grib
 from wx_explore.web import db
 
 logger = logging.getLogger(__name__)

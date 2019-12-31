@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
 from datetime import datetime, timedelta
-import tempfile
-import os
 import logging
 
 from wx_explore.common.models import (

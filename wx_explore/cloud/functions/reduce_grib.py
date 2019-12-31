@@ -2,7 +2,7 @@
 from sqlalchemy.orm import sessionmaker
 import tempfile
 
-from wx_explore.cloud.proxy import HttpRequest, HttpResponse, proxy
+from wx_explore.cloud.proxy import HttpResponse, proxy
 from wx_explore.cloud.helpers import s3_client, db_engine
 from wx_explore.common.models import Source, SourceField
 from wx_explore.ingest.reduce_grib import reduce_grib
