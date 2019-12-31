@@ -27,9 +27,8 @@ def db_engine(args):
         return create_engine(conn_creds['composed'][0] + "&sslrootcert=/tmp/db.crt")
     # TODO: AWS IAM-based DB credential retrieving
     elif 'CONFIG' in os.environ:
-        from wx_explore.web import config
-        cfg = config.getattr(os.environ['CONFIG'])
-        return create_engine(cfg.SQLALCHEMY_DATABASE_URI)
+        from wx_explore.common.config import Config
+        return create_engine(Config.SQLALCHEMY_DATABASE_URI)
     else:
         print("Warning: defaulting to sqlite://db.db")
         return create_engine("sqlite://db.db")

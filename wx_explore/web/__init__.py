@@ -7,7 +7,6 @@ from wx_explore.common.config import Config
 
 app = Flask(__name__)
 app.config.from_object(Config)
-app.config['SQLALCHEMY_DATABASE_URI'] = f"postgres://{app.config.get('POSTGRES_USER')}:{app.config.get('POSTGRES_PASS')}@{app.config.get('POSTGRES_HOST')}/{app.config.get('POSTGRES_DB')}"
 CORS(app)
 
 from wx_explore.common.models import Base

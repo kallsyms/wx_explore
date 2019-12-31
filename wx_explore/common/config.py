@@ -1,5 +1,6 @@
 import os
 
+
 class Config():
     DEBUG = os.environ.get('DEBUG', False)
     SECRET_KEY = os.environ.get('SECRET_KEY', os.urandom(32))
@@ -15,3 +16,6 @@ class Config():
     INGEST_S3_REGION     = os.environ['INGEST_S3_REGION']
     INGEST_S3_BUCKET     = os.environ['INGEST_S3_BUCKET']
     INGEST_S3_ENDPOINT   = os.environ.get('INGEST_S3_ENDPOINT')
+
+
+Config.SQLALCHEMY_DATABASE_URI = f"postgres://{Config.POSTGRES_USER}:{Config.POSTGRES_PASS}@{Config.POSTGRES_HOST}/{Config.POSTGRES_DB}"
