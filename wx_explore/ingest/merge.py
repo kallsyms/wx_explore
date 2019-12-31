@@ -51,6 +51,7 @@ def merge():
         n_y, n_x = proj_shape(proj)
         merged_loc_size = sum(f.loc_size for f in files)
         s3_file_name = hashlib.md5(('-'.join(f.file_name for f in files)).encode('utf-8')).hexdigest()
+        s3_file_name = s3_file_name[:2] + '/' + s3_file_name
 
         with tempfile.TemporaryFile() as merged:
             # Get file contents every few rows. Good middle between entire files (too much data to store in memory)

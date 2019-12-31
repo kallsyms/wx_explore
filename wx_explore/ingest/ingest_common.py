@@ -77,6 +77,7 @@ def ingest_grib_file(file_path, source):
 
         logger.info("Processing projection %d: fields %s", proj_id, fields)
         s3_file_name = hashlib.md5(f"{file_path}-{proj_id}".encode('utf-8')).hexdigest()
+        s3_file_name = s3_file_name[:2] + '/' + s3_file_name
 
         fm = FileMeta(
             file_name=s3_file_name,

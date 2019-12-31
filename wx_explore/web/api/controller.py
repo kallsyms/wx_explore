@@ -1,7 +1,6 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, abort, jsonify, request
 
-import array
 import collections
 import sqlalchemy
 
@@ -10,10 +9,8 @@ from wx_explore.common.models import (
     SourceField,
     Location,
     Metric,
-    FileBandMeta,
 )
-from wx_explore.common.location import get_xy_for_coord, proj_shape
-from wx_explore.common.storage import get_s3_bucket
+from wx_explore.common.storage import load_data_points
 from wx_explore.common.utils import datetime2unix
 from wx_explore.web import app
 
@@ -85,6 +82,7 @@ def get_location_from_query():
     return jsonify([l.serialize() for l in query.all()])
 
 
+
 @api.route('/wx')
 def wx_for_location():
     """
@@ -126,58 +124,12 @@ def wx_for_location():
             if end > now + timedelta(days=7):
                 end = now + timedelta(days=7)
 
-    requested_source_fields = SourceField.query.options(
-        sqlalchemy.orm.joinedload(SourceField.projection)
-    ).filter(
+    requested_source_fields = SourceField.query.filter(
         SourceField.metric_id.in_(metric_ids),
         SourceField.projection_id != None,
     ).all()
 
-    valid_source_fields = []
-    locs = {}
-    for sf in requested_source_fields:
-        if sf.projection.id in locs and locs[sf.projection.id] is None:
-            continue
-
-        if sf.projection.id not in locs:
-            loc = get_xy_for_coord(sf.projection, (lat,lon))
-            if loc is None:
-                continue
-
-            locs[sf.projection.id] = loc
-
-        valid_source_fields.append(sf)
-
-    fbms = FileBandMeta.query.filter(
-        FileBandMeta.source_field_id.in_([sf.id for sf in valid_source_fields]),
-        FileBandMeta.valid_time >= start,
-        FileBandMeta.valid_time < end,
-    ).all()
-
-    # Gather all files we need data from
-    file_metas = set(fbm.file_meta for fbm in fbms)
-    file_contents = {}
-
-    # Read them in
-    # TODO: do all of these in parallel since most time will probably be spent blocked on FIO
-    s3 = get_s3_bucket()
-    for fm in file_metas:
-        x, y = locs[fm.projection.id]
-        n_x = proj_shape(fm.projection)[1]
-        loc_chunks = (y * n_x) + x
-
-        obj = s3.Object(fm.file_name)
-        start = loc_chunks * fm.loc_size
-        end = (loc_chunks + 1) * fm.loc_size
-        file_contents[fm.file_name] = obj.get(Range=f'bytes={start}-{end-1}')['Body'].read()
-
-    # filebandmeta -> values
-    data_points = {}
-
-    for fbm in fbms:
-        raw = file_contents[fbm.file_name][fbm.offset:fbm.offset+(4*fbm.vals_per_loc)]
-        data_values = array.array("f", raw).tolist()
-        data_points[fbm] = data_values
+    data_points = load_data_points((lat, lon), start, end, requested_source_fields)
 
     # valid time -> data points
     datas = collections.defaultdict(list)
