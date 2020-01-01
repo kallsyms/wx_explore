@@ -19,11 +19,11 @@ def merge():
     """
     Merge all small files into larger files to reduce the number of S3 requests each query needs to do.
     """
-    # 4096 is somewhat arbitrary.
+    # 1024 is somewhat arbitrary.
     # This limit prevents all data points from being merged into a single large file which would
     #  1) never get cleaned up/removed
     #  2) be super inefficient to add to since it would be copying around 10s to 100s of GB
-    max_size = 4096
+    max_size = 1024
     # min_age prevents brand new files that may still be uploading from being merged.
     # This also has the side-effect of batching together small files that then merge into larger files
     # that then merge into larger files, etc. since a newly merged file wont be eligible in the next
