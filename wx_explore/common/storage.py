@@ -39,7 +39,7 @@ def get_signature_key(key, dateStamp, regionName, serviceName):
     return kSigning
 
 
-def s3_request(path, headers):
+def s3_request(path, **kwargs):
     access_key = Config.INGEST_S3_ACCESS_KEY
     secret_key = Config.INGEST_S3_SECRET_KEY
     region = Config.INGEST_S3_REGION
@@ -72,7 +72,7 @@ def s3_request(path, headers):
 
     amz_headers = {'x-amz-date': amzdate, 'Authorization': authorization_header}
 
-    return requests.get(endpoint + canonical_uri, headers={**headers, **amz_headers})
+    return requests.get(endpoint + canonical_uri, headers={**kwargs.get('headers', {}), **amz_headers}, **kwargs)
 
 
 def load_file_chunk(fm, coords):
@@ -84,7 +84,7 @@ def load_file_chunk(fm, coords):
     start = loc_chunks * fm.loc_size
     end = (loc_chunks + 1) * fm.loc_size
 
-    return s3_request(fm.file_name, {'Range': f'bytes={start}-{end-1}'}).content
+    return s3_request(fm.file_name, headers={'Range': f'bytes={start}-{end-1}'}).content
 
 
 def load_data_points(coords, start, end, source_fields=None):

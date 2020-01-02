@@ -9,21 +9,21 @@ from wx_explore.common.models import (
     FileMeta,
     FileBandMeta,
 )
-from wx_explore.common.storage import get_s3_bucket
+from wx_explore.common.storage import get_s3_bucket, s3_request
 from wx_explore.web import db
 
 logger = logging.getLogger(__name__)
 
 
-def merge():
+def merge(max_size=2048):
     """
     Merge all small files into larger files to reduce the number of S3 requests each query needs to do.
     """
-    # 1024 is somewhat arbitrary.
+    # max_size=2048 is somewhat arbitrary.
     # This limit prevents all data points from being merged into a single large file which would
     #  1) never get cleaned up/removed
     #  2) be super inefficient to add to since it would be copying around 10s to 100s of GB
-    max_size = 1024
+
     # min_age prevents brand new files that may still be uploading from being merged.
     # This also has the side-effect of batching together small files that then merge into larger files
     # that then merge into larger files, etc. since a newly merged file wont be eligible in the next
@@ -31,7 +31,7 @@ def merge():
     min_age = datetime.utcnow() - timedelta(hours=1)
 
     small_files = FileMeta.query.filter(
-        FileMeta.loc_size < max_size,
+        FileMeta.loc_size < (max_size - 4),
         FileMeta.ctime < min_age,
         FileMeta.file_name.in_(FileBandMeta.query.with_entities(FileBandMeta.file_name)),
     ).all()
@@ -42,60 +42,56 @@ def merge():
 
     s3 = get_s3_bucket()
 
-    for proj, files in proj_files.items():
-        if len(files) < 2:
-            continue
-
-        logger.info("Merging %s", ','.join(f.file_name for f in files))
+    for proj, all_files in proj_files.items():
+        # group all_files into a list of lists (of files),
+        # each list of files not having a total loc_size > max_size
+        merge_groups = [[]]
+        for f in all_files:
+            if sum(fl.loc_size for fl in merge_groups[-1]) > max_size:
+                merge_groups.append([])
+            merge_groups[-1].append(f)
 
         n_y, n_x = proj_shape(proj)
-        merged_loc_size = sum(f.loc_size for f in files)
-        s3_file_name = hashlib.md5(('-'.join(f.file_name for f in files)).encode('utf-8')).hexdigest()
-        s3_file_name = s3_file_name[:2] + '/' + s3_file_name
 
-        with tempfile.TemporaryFile() as merged:
-            # Get file contents every few rows. Good middle between entire files (too much data to store in memory)
-            # and each (x,y) (too many requests to S3).
-            buffer_lines = 50
+        for files in merge_groups:
+            if len(files) < 2:
+                continue
 
-            for y in range(n_y):
-                if y % buffer_lines == 0:
-                    file_contents = {}
-                    # TODO: parallelize
-                    for f in files:
-                        obj = s3.Object(f.file_name)
-                        start = (y * n_x) * f.loc_size
-                        end = ((y + buffer_lines) * n_x) * f.loc_size
-                        end = min(end, n_y * n_x * f.loc_size)
-                        file_contents[f] = obj.get(Range=f'bytes={start}-{end-1}')['Body'].read()
+            logger.info("Merging %s", ','.join(f.file_name for f in files))
 
-                for x in range(n_x):
-                    start = ((y % buffer_lines) * n_x) + x
-                    for f in files:
-                        merged.write(file_contents[f][start*f.loc_size:(start+1)*f.loc_size])
+            merged_loc_size = sum(f.loc_size for f in files)
+            s3_file_name = hashlib.md5(('-'.join(f.file_name for f in files)).encode('utf-8')).hexdigest()
+            s3_file_name = s3_file_name[:2] + '/' + s3_file_name
 
-            merged.seek(0)
-            s3.upload_fileobj(merged, s3_file_name)
-            logger.info("Created merged S3 file %s", s3_file_name)
+            requests = {f: s3_request(f.file_name, stream=True) for f in files}
+            with tempfile.TemporaryFile() as merged:
+                for y in range(n_y):
+                    for x in range(n_x):
+                        for f, req in requests.items():
+                            merged.write(req.raw.read(f.loc_size))
 
-        merged_meta = FileMeta(
-            file_name=s3_file_name,
-            projection_id=proj.id,
-            loc_size=merged_loc_size,
-        )
-        db.session.add(merged_meta)
-        db.session.commit()
+                merged.seek(0)
+                s3.upload_fileobj(merged, s3_file_name)
+                logger.info("Created merged S3 file %s", s3_file_name)
 
-        offset = 0
+            merged_meta = FileMeta(
+                file_name=s3_file_name,
+                projection_id=proj.id,
+                loc_size=merged_loc_size,
+            )
+            db.session.add(merged_meta)
+            db.session.commit()
 
-        for f in files:
-            for band in f.bands:
-                band.file_name = merged_meta.file_name
-                band.offset += offset
-            offset += f.loc_size
+            offset = 0
 
-        db.session.commit()
-        logger.info("Updated file band meta")
+            for f in files:
+                for band in f.bands:
+                    band.file_name = merged_meta.file_name
+                    band.offset += offset
+                offset += f.loc_size
+
+            db.session.commit()
+            logger.info("Updated file band meta")
 
 
 if __name__ == "__main__":
