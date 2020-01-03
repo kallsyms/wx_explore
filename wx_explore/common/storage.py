@@ -8,7 +8,7 @@ import requests
 import urllib.parse
 
 from wx_explore.common.config import Config
-from wx_explore.common.location import get_xy_for_coord, proj_shape
+from wx_explore.common.location import get_xy_for_coord
 from wx_explore.common.models import (
     SourceField,
     FileBandMeta,
@@ -78,7 +78,7 @@ def s3_request(path, **kwargs):
 def load_file_chunk(fm, coords):
     x, y = coords
 
-    n_x = proj_shape(fm.projection)[1]
+    n_x = fm.projection.shape()[1]
     loc_chunks = (y * n_x) + x
 
     start = loc_chunks * fm.loc_size

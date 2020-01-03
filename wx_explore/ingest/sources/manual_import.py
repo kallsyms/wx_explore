@@ -11,7 +11,6 @@ from wx_explore.common.models import Source
 logging.basicConfig(level=logging.INFO,
                     format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
                     datefmt="%Y-%m-%d %H:%M:%S")
-logging.getLogger('raster2pgsql').setLevel(logging.INFO)
 
 if len(sys.argv) < 3:
     print(f"Usage: {sys.argv[0]} source_short_name files...", file=sys.stderr)
@@ -28,7 +27,7 @@ if src is None:
 
 for f in files:
     with open(f + '.idx', 'r') as index:
-        ranges = get_grib_ranges(index.read(), src.fields[:1])
+        ranges = get_grib_ranges(index.read(), src.fields)
 
     with tempfile.NamedTemporaryFile() as reduced:
         with open(f, 'rb') as src_grib:

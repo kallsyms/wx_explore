@@ -5,7 +5,6 @@ import io
 import logging
 import tempfile
 
-from wx_explore.common.location import proj_shape
 from wx_explore.common.models import (
     FileMeta,
     FileBandMeta,
@@ -52,7 +51,7 @@ def merge(max_size=2048):
                 merge_groups.append([])
             merge_groups[-1].append(f)
 
-        n_y, n_x = proj_shape(proj)
+        n_y, n_x = proj.shape()
 
         for files in merge_groups:
             if len(files) < 2:
@@ -66,7 +65,7 @@ def merge(max_size=2048):
 
             streams = {}
             for f in files:
-                r = s3_request(f.file_name).raw
+                r = s3_request(f.file_name, stream=True).raw
                 r.auto_close = False
                 streams[f] = io.BufferedReader(r, f.loc_size * n_x * 10)
 

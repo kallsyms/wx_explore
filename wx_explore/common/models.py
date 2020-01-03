@@ -132,8 +132,13 @@ class Projection(Base):
 
     id = Column(Integer, primary_key=True)
     params = Column(JSONB)
+    n_x = Column(Integer)
+    n_y = Column(Integer)
     lats = deferred(Column(JSONB))
     lons = deferred(Column(JSONB))
+
+    def shape(self):
+        return (self.n_y, self.n_x)
 
 
 class FileMeta(Base):

@@ -55,6 +55,8 @@ def ingest_grib_file(file_path, source):
             if projection is None:
                 projection = Projection(
                     params=msg.projparams,
+                    n_x=msg.values.shape[1],
+                    n_y=msg.values.shape[0],
                     lats=msg.latlons()[0].tolist(),
                     lons=msg.latlons()[1].tolist(),
                 )
