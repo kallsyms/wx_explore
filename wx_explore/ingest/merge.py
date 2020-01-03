@@ -3,6 +3,7 @@ import collections
 import hashlib
 import io
 import logging
+import numpy
 import tempfile
 
 from wx_explore.common.models import (
@@ -67,13 +68,22 @@ def merge(max_size=2048):
             for f in files:
                 r = s3_request(f.file_name, stream=True).raw
                 r.auto_close = False
+                # Buffer up to 20 rows in memory, about 80MB worst case
+                # (loc_size=2048 * n_x~=2000 * 20) ~= 82MB
                 streams[f] = io.BufferedReader(r, f.loc_size * n_x * 10)
 
-            with tempfile.TemporaryFile(buffering=10*1024*1024) as merged:
+            with tempfile.TemporaryFile(buffering=8*1024*1024) as merged:
                 for y in range(n_y):
-                    for x in range(n_x):
-                        for f in files:
-                            merged.write(streams[f].read(f.loc_size))
+                    contents = []
+                    for f in files:
+                        contents.append(
+                            numpy.frombuffer(
+                                streams[f].read(f.loc_size * n_x),
+                                dtype=numpy.float32,
+                            ).reshape((n_x, f.loc_size//4))
+                        )
+
+                    merged.write(numpy.concatenate(contents, axis=1).tobytes())
 
                 merged.seek(0)
                 s3.upload_fileobj(merged, s3_file_name)
