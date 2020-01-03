@@ -1,6 +1,7 @@
 from datetime import datetime, timedelta
 import collections
 import hashlib
+import io
 import logging
 import tempfile
 
@@ -47,7 +48,7 @@ def merge(max_size=2048):
         # each list of files not having a total loc_size > max_size
         merge_groups = [[]]
         for f in all_files:
-            if sum(fl.loc_size for fl in merge_groups[-1]) > max_size:
+            if sum(fl.loc_size for fl in merge_groups[-1]) + f.loc_size > max_size:
                 merge_groups.append([])
             merge_groups[-1].append(f)
 
@@ -63,12 +64,17 @@ def merge(max_size=2048):
             s3_file_name = hashlib.md5(('-'.join(f.file_name for f in files)).encode('utf-8')).hexdigest()
             s3_file_name = s3_file_name[:2] + '/' + s3_file_name
 
-            requests = {f: s3_request(f.file_name, stream=True) for f in files}
-            with tempfile.TemporaryFile() as merged:
+            streams = {}
+            for f in files:
+                r = s3_request(f.file_name).raw
+                r.auto_close = False
+                streams[f] = io.BufferedReader(r, f.loc_size * n_x * 10)
+
+            with tempfile.TemporaryFile(buffering=10*1024*1024) as merged:
                 for y in range(n_y):
                     for x in range(n_x):
-                        for f, req in requests.items():
-                            merged.write(req.raw.read(f.loc_size))
+                        for f in files:
+                            merged.write(streams[f].read(f.loc_size))
 
                 merged.seek(0)
                 s3.upload_fileobj(merged, s3_file_name)
