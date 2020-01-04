@@ -23,7 +23,7 @@ def get_queue():
     return pq['ingest']
 
 
-def create_projection(msg):
+def get_or_create_projection(msg):
     lats, lons = msg.latlons()
 
     # GFS (and maybe others) have lons that range 0-360 instead of -180 to 180.
@@ -31,18 +31,25 @@ def create_projection(msg):
     if lons.max() > 180:
         lons = numpy.vectorize(lambda n: n if 0 <= n < 180 else n-360)(lons)
 
-    tree = cKDTree(numpy.stack([lons.ravel(), lats.ravel()], axis=-1))
-
-    projection = Projection(
+    projection = Projection.query.filter_by(
         params=msg.projparams,
-        n_x=msg.values.shape[1],
-        n_y=msg.values.shape[0],
         lats=lats.tolist(),
         lons=lons.tolist(),
-        tree=pickle.dumps(tree),
-    )
-    db.session.add(projection)
-    db.session.commit()
+    ).first()
+
+    if projection is None:
+        tree = cKDTree(numpy.stack([lons.ravel(), lats.ravel()], axis=-1))
+
+        projection = Projection(
+            params=msg.projparams,
+            n_x=msg.values.shape[1],
+            n_y=msg.values.shape[0],
+            lats=lats.tolist(),
+            lons=lons.tolist(),
+            tree=pickle.dumps(tree),
+        )
+        db.session.add(projection)
+        db.session.commit()
 
     return projection
 
@@ -72,15 +79,7 @@ def ingest_grib_file(file_path, source):
             continue
 
         if field.projection is None or field.projection.params != msg.projparams:
-            projection = Projection.query.filter_by(
-                params=msg.projparams,
-                lats=msg.latlons()[0].tolist(),
-                lons=msg.latlons()[1].tolist(),
-            ).first()
-
-            if projection is None:
-                projection = create_projection(msg)
-
+            projection = get_or_create_projection(msg)
             field.projection_id = projection.id
             db.session.commit()
 
