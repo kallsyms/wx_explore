@@ -1,5 +1,6 @@
 from scipy.spatial import cKDTree
 import numpy
+import pickle
 
 from wx_explore.common.models import (
     Projection,
@@ -12,14 +13,15 @@ lut_meta = {}
 def load_coordinate_lookup_meta(proj):
     lats = numpy.array(proj.lats)
     lons = numpy.array(proj.lons)
+    tree = pickle.loads(proj.tree)
 
-    # GFS (and maybe others) have lons that range 0-360 instead of -180 to 180.
-    # If found, transform them to match the standard range.
-    if lons.max() > 180:
-        lons = numpy.vectorize(lambda n: n if 0 <= n < 180 else n-360)(lons)
-
-    tree = cKDTree(numpy.stack([lons.ravel(), lats.ravel()], axis=-1))
     return (lats, lons, tree)
+
+
+def get_lookup_meta(proj):
+    if proj.id not in lut_meta:
+        lut_meta[proj.id] = load_coordinate_lookup_meta(proj)
+    return lut_meta[proj.id]
 
 
 def preload_coordinate_lookup_meta():
@@ -27,13 +29,7 @@ def preload_coordinate_lookup_meta():
     Preload all projection metadata for quick lookups
     """
     for proj in Projection.query.all():
-        lut_meta[proj.id] = load_coordinate_lookup_meta(proj)
-
-
-def get_lookup_meta(proj):
-    if proj.id not in lut_meta:
-        lut_meta[proj.id] = load_coordinate_lookup_meta(proj)
-    return lut_meta[proj.id]
+        get_lookup_meta(proj)
 
 
 def get_xy_for_coord(proj, coords):

@@ -1,7 +1,9 @@
+from scipy.spatial import cKDTree
 import collections
 import hashlib
 import logging
 import numpy
+import pickle
 import pygrib
 
 from wx_explore.common.models import (
@@ -19,6 +21,30 @@ logger = logging.getLogger(__name__)
 
 def get_queue():
     return pq['ingest']
+
+
+def create_projection(msg):
+    lats, lons = msg.latlons()
+
+    # GFS (and maybe others) have lons that range 0-360 instead of -180 to 180.
+    # If found, transform them to match the standard range.
+    if lons.max() > 180:
+        lons = numpy.vectorize(lambda n: n if 0 <= n < 180 else n-360)(lons)
+
+    tree = cKDTree(numpy.stack([lons.ravel(), lats.ravel()], axis=-1))
+
+    projection = Projection(
+        params=msg.projparams,
+        n_x=msg.values.shape[1],
+        n_y=msg.values.shape[0],
+        lats=lats.tolist(),
+        lons=lons.tolist(),
+        tree=pickle.dumps(tree),
+    )
+    db.session.add(projection)
+    db.session.commit()
+
+    return projection
 
 
 def ingest_grib_file(file_path, source):
@@ -53,15 +79,7 @@ def ingest_grib_file(file_path, source):
             ).first()
 
             if projection is None:
-                projection = Projection(
-                    params=msg.projparams,
-                    n_x=msg.values.shape[1],
-                    n_y=msg.values.shape[0],
-                    lats=msg.latlons()[0].tolist(),
-                    lons=msg.latlons()[1].tolist(),
-                )
-                db.session.add(projection)
-                db.session.commit()
+                projection = create_projection(msg)
 
             field.projection_id = projection.id
             db.session.commit()

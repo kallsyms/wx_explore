@@ -1,7 +1,7 @@
 from datetime import datetime
 from geoalchemy2 import Geography
 from shapely import wkb
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -136,6 +136,7 @@ class Projection(Base):
     n_y = Column(Integer)
     lats = deferred(Column(JSONB))
     lons = deferred(Column(JSONB))
+    tree = deferred(Column(LargeBinary))
 
     def shape(self):
         return (self.n_y, self.n_x)
