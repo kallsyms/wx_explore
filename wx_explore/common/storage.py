@@ -71,8 +71,9 @@ def s3_request(path, **kwargs):
     authorization_header = algorithm + ' ' + 'Credential=' + access_key + '/' + credential_scope + ', ' +  'SignedHeaders=' + signed_headers + ', ' + 'Signature=' + signature
 
     amz_headers = {'x-amz-date': amzdate, 'Authorization': authorization_header}
+    headers = {**kwargs.pop('headers', {}), **amz_headers}
 
-    return requests.get(endpoint + canonical_uri, headers={**kwargs.get('headers', {}), **amz_headers}, **kwargs)
+    return requests.get(endpoint + canonical_uri, headers=headers, **kwargs)
 
 
 def load_file_chunk(fm, coords):
