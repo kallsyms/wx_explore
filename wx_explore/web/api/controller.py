@@ -82,6 +82,24 @@ def get_location_from_query():
     return jsonify([l.serialize() for l in query.all()])
 
 
+@api.route('/location/by_coords')
+def get_location_from_coords():
+    """
+    Get the nearest location from a given lat, lon.
+    :return: The location.
+    """
+
+    lat = float(request.args['lat'])
+    lon = float(request.args['lon'])
+
+    if lat > 90 or lat < -90 or lon > 180 or lon < -180:
+        abort(400)
+
+    # TODO: may need to add distance limit if perf drops
+    location = Location.query.order_by(Location.location.distance_centroid('POINT({} {})'.format(lon, lat))).first()
+
+    return jsonify(location.serialize())
+
 
 @api.route('/wx')
 def wx_for_location():

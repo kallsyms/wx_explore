@@ -71,7 +71,7 @@ kind: CronJob
 metadata:
   name: wx-explore-merge
 spec:
-  schedule: "5 * * * *"  # few mins after cleaner
+  schedule: "*/10 * * * *"
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:
@@ -144,6 +144,7 @@ spec:
   startingDeadlineSeconds: 300
   jobTemplate:
     spec:
+      activeDeadlineSeconds: 600
       template:
         spec:
           restartPolicy: Never
