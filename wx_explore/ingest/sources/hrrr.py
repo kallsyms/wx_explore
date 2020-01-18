@@ -1,12 +1,9 @@
 #!/usr/bin/env python3
 from datetime import datetime, timedelta
-import tempfile
-import os
 import logging
 
 from wx_explore.common.utils import datetime2unix
 from wx_explore.ingest import get_queue
-from wx_explore.web import db
 
 
 def queue_hrrr(time_min=0, time_max=18, run_time=None, acquire_time=None):

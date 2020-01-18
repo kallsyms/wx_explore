@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from PIL import Image
 
-import base64
 import collections
 import io
 import matplotlib.colors
@@ -54,7 +53,7 @@ def func(req: HttpRequest) -> HttpResponse:
 
             try:
                 cm_data = [ColorMapEntry(*map(float, cme.split(','))) for cme in req.args['cm'].split(';')]
-            except:
+            except Exception:
                 return HttpResponse(
                     "Malformed color map",
                     status_code=400,
@@ -76,7 +75,7 @@ def func(req: HttpRequest) -> HttpResponse:
                 cdict,
             )
 
-            if args.get('cm_mask_under'):
+            if req.args.get('cm_mask_under'):
                 cm.set_under(alpha=0)
 
             img = Image.fromarray(numpy.uint8(cm(norm(data))*255), 'RGBA')

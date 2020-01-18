@@ -1,3 +1,6 @@
 .git/
 Dockerfile
 *.md
+**/__pycache__/
+**/node_modules/
+tmp/

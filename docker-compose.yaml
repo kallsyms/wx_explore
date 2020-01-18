@@ -1,0 +1,41 @@
+version: '3.1'
+
+services:
+    db:
+        image: mdillon/postgis:11
+        restart: always
+        expose:
+            - 5432
+
+    minio:
+        image: minio/minio:latest
+        restart: always
+        environment:
+            - MINIO_ACCESS_KEY=miniominio
+            - MINIO_SECRET_KEY=miniominio
+        entrypoint: /bin/sh
+        command: -c 'mkdir -p /srv/wx-denormalized && minio server /srv'
+        expose:
+            - 9000
+
+    wx_explore:
+        image: kallsyms/wx_explore:latest
+        restart: always
+        depends_on:
+            - db
+            - minio
+        environment:
+            - POSTGRES_USER=postgres
+            - POSTGRES_PASS=postgres
+            - POSTGRES_DB=postgres
+            - POSTGRES_HOST=db
+            - INGEST_S3_ACCESS_KEY=miniominio
+            - INGEST_S3_SECRET_KEY=miniominio
+            - INGEST_S3_REGION=us-east-1
+            - INGEST_S3_BUCKET=wx-denormalized
+            - INGEST_S3_ENDPOINT=http://minio:9000
+            - DEBUG=1
+        volumes:
+            - ./:/opt/wx_explore
+        ports:
+            - 8080:8080

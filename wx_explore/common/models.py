@@ -1,8 +1,9 @@
-from geoalchemy2 import Geography, Raster
+from datetime import datetime
+from geoalchemy2 import Geography
 from shapely import wkb
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSONB
-from sqlalchemy.orm import relationship
+from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.ext.declarative import declarative_base
 
 
@@ -88,19 +89,19 @@ class SourceField(Base):
         }
 
     def __repr__(self):
-        return f"<SourceField id={self.id} name='{self.name}'>"
+        return f"<SourceField id={self.id} short_name='{self.idx_short_name}'>"
 
 
 class Location(Base):
     """
     A specific location that we have a lat/lon for.
-    Currently just zipcodes.
     """
     __tablename__ = "location"
 
     id = Column(Integer, primary_key=True)
     location = Column(Geography('Point,4326'))
     name = Column(String(512))
+    population = Column(Integer)
 
     def get_coords(self):
         """
@@ -114,9 +115,9 @@ class Location(Base):
 
         return {
             "id": self.id,
+            "name": self.name,
             "lon": coords[0],
             "lat": coords[1],
-            "name": self.name,
         }
 
     def __repr__(self):
@@ -125,56 +126,56 @@ class Location(Base):
 
 class Projection(Base):
     """
-    Table that maps project params to a unique ID for use in CoordinateLookup
+    Table that holds data about the projection a given ingested file uses.
     """
     __tablename__ = "projection"
 
     id = Column(Integer, primary_key=True)
-    params = Column(JSONB, unique=True)
+    params = Column(JSONB)
+    n_x = Column(Integer)
+    n_y = Column(Integer)
+    lats = deferred(Column(JSONB))
+    lons = deferred(Column(JSONB))
+    tree = deferred(Column(LargeBinary))
+
+    def shape(self):
+        return (self.n_y, self.n_x)
 
 
-class CoordinateLookup(Base):
+class FileMeta(Base):
     """
-    Table that holds a lookup from location to grid x,y for the given projection.
-    """
-    __tablename__ = "coordinate_lookup"
+    Table that holds metadata about denormalized data in a given file.
 
-    projection_id = Column(Integer, ForeignKey('projection.id'), primary_key=True)
-    location_id = Column(Integer, ForeignKey('location.id'), primary_key=True)
-    x = Column(Integer)
-    y = Column(Integer)
+    Each file can hold any data (different fields, different sources even) as long
+    as it has a single projection.
+    """
+    __tablename__ = "file_meta"
+    file_name = Column(String(4096), primary_key=True)
+    projection_id = Column(Integer, ForeignKey('projection.id'))
+    ctime = Column(DateTime, default=datetime.utcnow)
+    loc_size = Column(Integer)
 
     projection = relationship('Projection')
-    location = relationship('Location')
 
 
-class DataRaster(Base):
+class FileBandMeta(Base):
     """
-    Table that holds the "raw" raster data.
+    Table that holds data about specific runs of denormalized data in the given file.
     """
-    __tablename__ = "data_raster"
+    __tablename__ = "file_band_meta"
 
-    source_field_id = Column(Integer, ForeignKey('source_field.id'), primary_key=True)
-    valid_time = Column(DateTime, primary_key=True)
-    run_time = Column(DateTime, primary_key=True)
-    row = Column(Integer, primary_key=True)
-    rast = Column(Raster)
+    # TODO: on delete of file meta, delete these
+    # PKs
+    file_name = Column(String, ForeignKey('file_meta.file_name'), primary_key=True)
+    offset = Column(Integer, primary_key=True)  # offset within a (x,y) chunk, _not_ offset in the entire file
 
-    src_field = relationship('SourceField')
+    # Metadata used to seek into the file
+    vals_per_loc = Column(Integer)
 
-    def __repr__(self):
-        return f"<DataRaster source_field_id={self.source_field_id} valid_time={self.valid_time} run_time={self.run_time} row={self.row}>"
+    # Metadata
+    source_field_id = Column(Integer, ForeignKey('source_field.id'))
+    valid_time = Column(DateTime)
+    run_time = Column(DateTime)
 
-
-class LocationData(Base):
-    """
-    Table that holds denormalized data for a given location.
-
-    The data stored is a JSON list of objects, each have the SourceField they come from,
-    the run time of the model, and the actual field value.
-    """
-    __tablename__ = "location_data"
-
-    location_id = Column(Integer, ForeignKey('location.id'), primary_key=True)
-    valid_time = Column(DateTime, primary_key=True)
-    values = Column(JSONB)
+    file_meta = relationship('FileMeta', backref='bands', lazy='joined')
+    source_field = relationship('SourceField')

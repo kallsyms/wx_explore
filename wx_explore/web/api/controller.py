@@ -1,5 +1,8 @@
-from flask import Blueprint, abort, jsonify, request
 from datetime import datetime, timedelta
+from flask import Blueprint, abort, jsonify, request
+
+import collections
+import sqlalchemy
 
 from wx_explore.analysis import (
     combine_models,
@@ -11,10 +14,11 @@ from wx_explore.analysis import (
 )
 from wx_explore.common.models import (
     Source,
+    SourceField,
     Location,
     Metric,
-    LocationData,
 )
+from wx_explore.common.storage import load_data_points
 from wx_explore.common.utils import datetime2unix
 from wx_explore.web import app
 
@@ -75,9 +79,13 @@ def get_location_from_query():
 
     # Fixes basic weird results that could come from users entering '\'s, '%'s, or '_'s
     search = search.replace('\\', '\\\\').replace('_', '\_').replace('%', '\%')
-    search += '%'
+    search = search.replace(',', '')
+    search = search.lower()
 
-    query = Location.query.filter(Location.name.ilike(search)).limit(10)
+    query = Location.query \
+            .filter(sqlalchemy.func.lower(sqlalchemy.func.replace(Location.name, ',', '')).like('%' + search + '%')) \
+            .order_by(Location.population.desc().nullslast()) \
+            .limit(10)
 
     return jsonify([l.serialize() for l in query.all()])
 
@@ -92,48 +100,42 @@ def get_location_from_coords():
     lat = float(request.args['lat'])
     lon = float(request.args['lon'])
 
+    if lat > 90 or lat < -90 or lon > 180 or lon < -180:
+        abort(400)
+
     # TODO: may need to add distance limit if perf drops
     location = Location.query.order_by(Location.location.distance_centroid('POINT({} {})'.format(lon, lat))).first()
 
     return jsonify(location.serialize())
 
 
-@api.route('/location/<int:loc_id>')
-def get_location(loc_id):
-    """
-    Get information about a specific location.
-    :param loc_id: The ID of the location to get information about.
-    :return: The location.
-    """
-    location = Location.query.get_or_404(loc_id)
-    return jsonify(location.serialize())
-
-
-@api.route('/location/<int:loc_id>/wx')
-def wx_for_location(loc_id):
+@api.route('/wx')
+def wx_for_location():
     """
     Gets the weather for a specific location, optionally limiting by metric and time.
-    :param loc_id: The ID of the location to get weather for.
-    :return: An object mapping UNIX timestamp to a list of metrics representing the weather for the given location
     at that time.
     """
-    location = Location.query.get_or_404(loc_id)
+    lat = float(request.args['lat'])
+    lon = float(request.args['lon'])
 
-    requested_metrics = request.args.get('metrics')
+    if lat > 90 or lat < -90 or lon > 180 or lon < -180:
+        abort(400)
+
+    requested_metrics = request.args.getlist('metrics', int)
 
     if requested_metrics:
-        metrics = [Metric.query.get(i) for i in requested_metrics.split(',')]
+        metric_ids = set(requested_metrics)
     else:
-        metrics = Metric.query.all()
+        metric_ids = Metric.query.with_entities(Metric.id)
 
     now = datetime.utcnow()
-    start = request.args.get('start')
-    end = request.args.get('end')
+    start = request.args.get('start', type=int)
+    end = request.args.get('end', type=int)
 
     if start is None:
         start = now - timedelta(hours=1)
     else:
-        start = datetime.utcfromtimestamp(int(start))
+        start = datetime.utcfromtimestamp(start)
 
         if not app.debug:
             if start < now - timedelta(days=1):
@@ -142,37 +144,33 @@ def wx_for_location(loc_id):
     if end is None:
         end = now + timedelta(hours=12)
     else:
-        end = datetime.utcfromtimestamp(int(end))
+        end = datetime.utcfromtimestamp(end)
 
         if not app.debug:
             if end > now + timedelta(days=7):
                 end = now + timedelta(days=7)
 
-    # TODO: actually incorporate this into the filter below.
-    # select location_id, valid_time, array_to_json(array_agg(v.*)) as values from location_data ld, json_array_elements(values::json) v where (v->>'src_field_id')::int in (3) group by location_id, valid_time;
-    requested_source_field_ids = set()
-    for metric in metrics:
-        for sf in metric.fields:
-            requested_source_field_ids.add(sf.id)
-
-    # Get all data points for the location and times specified.
-    # This is a dictionary mapping str(valid_time) -> list of metric values
-    loc_data = LocationData.query.filter(
-        LocationData.location_id == location.id,
-        LocationData.valid_time >= start,
-        LocationData.valid_time < end,
+    requested_source_fields = SourceField.query.filter(
+        SourceField.metric_id.in_(metric_ids),
+        SourceField.projection_id != None,
     ).all()
 
-    # wx['data'] is a dict of unix_time->metrics, where each metric may have multiple values from different sources
-    wx = {
-        'ordered_times': sorted(datetime2unix(data.valid_time) for data in loc_data),
-        'data': {datetime2unix(data.valid_time): [] for data in loc_data},
-    }
+    data_points = load_data_points((lat, lon), start, end, requested_source_fields)
 
-    for data in loc_data:
-        for data_point in data.values:
-            if data_point['src_field_id'] in requested_source_field_ids:
-                wx['data'][datetime2unix(data.valid_time)].append(data_point)
+    # valid time -> data points
+    datas = collections.defaultdict(list)
+
+    for fbm, values in data_points.items():
+        datas[datetime2unix(fbm.valid_time)].append({
+            'run_time': datetime2unix(fbm.run_time),
+            'src_field_id': fbm.source_field_id,
+            'value': values[0],  # TODO
+        })
+
+    wx = {
+        'data': datas,
+        'ordered_times': sorted(datas.keys()),
+    }
 
     return jsonify(wx)
 

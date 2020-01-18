@@ -20,8 +20,10 @@ export default class ForecastView extends React.Component {
 
   getWx() {
     let t = Math.round((new Date()).getTime() / 1000);
-    Api.get("/location/" + this.props.location.id + "/wx", {
+    Api.get("/wx", {
       params: {
+        lat: this.props.location.lat,
+        lon: this.props.location.lon,
         start: t,
         end: t + (7 * 24 * 60 * 60),
       },

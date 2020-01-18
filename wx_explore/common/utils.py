@@ -3,6 +3,7 @@ import datetime
 import functools
 import logging
 import requests
+import time
 
 
 logger = logging.getLogger(__name__)
@@ -28,7 +29,7 @@ def get_url(url, headers=None, retries=3):
             break
         except KeyboardInterrupt:
             raise
-        except Exception as e:
+        except Exception:
             logger.exception("Exception while GETing %s. Retrying...", url)
             time.sleep(3**i)
             continue

@@ -1,0 +1,405 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-clean
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-clean
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.clean
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-merge
+spec:
+  schedule: "*/10 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-merge
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.merge
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-worker
+spec:
+  schedule: "*/5 * * * *"
+  concurrencyPolicy: Forbid
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: wx-explore-worker
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.worker
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-hrrr
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-hrrr
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.sources.hrrr
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-gfs
+spec:
+  schedule: "0 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-gfs
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.sources.gfs
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-nam
+spec:
+  schedule: "0 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-nam
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.sources.nam
+            env:
+              - name: POSTGRES_USER
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-user
+              - name: POSTGRES_PASS
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: db-pass
+              - name: POSTGRES_HOST
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-host
+              - name: POSTGRES_DB
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: db-name
+              - name: INGEST_S3_ACCESS_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-access-key
+              - name: INGEST_S3_SECRET_KEY
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-secret-key
+              - name: INGEST_S3_REGION
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-region
+              - name: INGEST_S3_BUCKET
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-bucket
+              - name: INGEST_S3_ENDPOINT
+                valueFrom:
+                  configMapKeyRef:
+                    name: wx-explore
+                    key: ingest-s3-endpoint
