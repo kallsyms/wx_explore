@@ -4,13 +4,9 @@ from flask import Blueprint, abort, jsonify, request
 import collections
 import sqlalchemy
 
-from wx_explore.analysis import (
+from wx_explore.analysis.summarize import (
     combine_models,
-    cluster,
     SummarizedData,
-    TemperatureEvent,
-    PrecipEvent,
-    WindEvent,
 )
 from wx_explore.common.models import (
     Source,
@@ -152,7 +148,7 @@ def wx_for_location():
 
     requested_source_fields = SourceField.query.filter(
         SourceField.metric_id.in_(metric_ids),
-        SourceField.projection_id != None,
+        SourceField.projection_id != None,  # noqa: E711
     ).all()
 
     data_points = load_data_points((lat, lon), start, end, requested_source_fields)
@@ -160,11 +156,12 @@ def wx_for_location():
     # valid time -> data points
     datas = collections.defaultdict(list)
 
-    for fbm, values in data_points.items():
-        datas[datetime2unix(fbm.valid_time)].append({
-            'run_time': datetime2unix(fbm.run_time),
-            'src_field_id': fbm.source_field_id,
-            'value': values[0],  # TODO
+    for dp in data_points:
+        datas[datetime2unix(dp.valid_time)].append({
+            'run_time': datetime2unix(dp.run_time),
+            'src_field_id': dp.source_field_id,
+            'value': dp.median(),
+            'raw_values': dp.values,
         })
 
     wx = {
@@ -175,58 +172,50 @@ def wx_for_location():
     return jsonify(wx)
 
 
-@api.route('/location/<int:loc_id>/wx/summarize')
-def summarize(loc_id):
+@api.route('/wx/summarize')
+def summarize():
     """
     Summarizes the weather in a natural way.
-    :param loc_id: The ID of the location to get weather for.
-    :return: A list of strings summarizing the weather. One per day.
+    Returns a list of objects describing a summary of the weather (one per day).
     """
-    location = Location.query.get_or_404(loc_id)
+    lat = float(request.args['lat'])
+    lon = float(request.args['lon'])
+    start = request.args.get('start', type=int)
+    days = int(request.args['days'])
 
-    temp_sourcefield = SourceField.query(SourceField.source_id == , SourceField.metric.name == "2m Temperature").first()
-    rain_sourcefield = SourceField.query(SourceField.source_id == , SourceField.metric.name == "Raining").first()
-    snow_sourcefield = SourceField.query(SourceField.source_id == , SourceField.metric.name == "Snowing").first()
-    wind_sourcefield = SourceField.query(SourceField.source_id == , SourceField.metric.name == "Wind").first()
+    if lat > 90 or lat < -90 or lon > 180 or lon < -180:
+        abort(400)
+
+    if days > 10:
+        abort(400)
 
     # TODO: This should be done relative to the location's local TZ
     now = datetime.utcnow()
-    days = int(request.args.get('days', 7))
+    if start is None:
+        start = now
+    else:
+        start = datetime.utcfromtimestamp(start)
 
-    if days < 1:
-        days = 1
-    elif days > 7:
-        days = 7
+        if not app.debug:
+            if start < now - timedelta(days=1):
+                start = now - timedelta(days=1)
 
+    temp_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "2m Temperature", SourceField.projection_id != None).all()
+    rain_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Raining", SourceField.projection_id != None).all()
+    snow_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Snowing", SourceField.projection_id != None).all()
+    wind_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Wind", SourceField.projection_id != None).all()
+
+    data_points = load_data_points((lat, lon), start, start + timedelta(days=days),
+                                   temp_sourcefields + rain_sourcefields + snow_sourcefields + wind_sourcefields)
     summarizations = []
 
     for d in range(days):
-        summary = SummarizedData()
+        dstart = start + timedelta(days=d)
+        dend = start + timedelta(days=d+1)
 
-        loc_data = LocationData.query.filter(
-            LocationData.location_id == location.id,
-            LocationData.valid_time >= now + timedelta(days=d),
-            LocationData.valid_time < now + timedelta(days=d+1),
-        ).all()
+        combined_data_points = combine_models(filter(lambda d: dstart <= d.valid_time < dend, data_points))
 
-        model_loc_data = combine_models(loc_data)
-
-        for data in model_loc_data:
-            for data_point in data.values:
-                if data_point['src_field_id'] == temp_sourcefield.id:
-                    if data_point['value'] < summary.low.temperature:
-                        summary.low = TemperatureEvent(time=data.valid_time, temperature=data_point['value'])
-                    elif data_point['value'] > summary.high.temperature:
-                        summary.high = TemperatureEvent(time=data.valid_time, temperature=data_point['value'])
-
-        # TODO: extract intensity ('light', 'heavy') for rain/snow
-        rain_periods = [PrecipEvent(start, end, 'rain') for start, end, _ in cluster(model_loc_data, rain_sourcefield.id)]
-        snow_periods = [PrecipEvent(start, end, 'snow') for start, end, _ in cluster(model_loc_data, snow_sourcefield.id)]
-
-        summary.precip_events = sorted(rain_periods + snow_periods, key=lambda event: event.start)
-
-        summary.wind_events = [WindEvent(start, end, max(values)) for start, end, values in cluster(model_loc_data, wind_sourcefield.id, lambda v: v >= 30)]
-
+        summary = SummarizedData(dstart, combined_data_points)
         summarizations.append(summary.dict())
 
     return jsonify(summarizations)

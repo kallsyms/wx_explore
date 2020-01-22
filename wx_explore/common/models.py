@@ -1,10 +1,13 @@
-from datetime import datetime
 from geoalchemy2 import Geography
 from shapely import wkb
 from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, LargeBinary
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.ext.declarative import declarative_base
+from typing import List, Optional
+
+import datetime
+import numpy
 
 
 Base = declarative_base()
@@ -152,7 +155,7 @@ class FileMeta(Base):
     __tablename__ = "file_meta"
     file_name = Column(String(4096), primary_key=True)
     projection_id = Column(Integer, ForeignKey('projection.id'))
-    ctime = Column(DateTime, default=datetime.utcnow)
+    ctime = Column(DateTime, default=datetime.datetime.utcnow)
     loc_size = Column(Integer)
 
     projection = relationship('Projection')
@@ -179,3 +182,47 @@ class FileBandMeta(Base):
 
     file_meta = relationship('FileMeta', backref='bands', lazy='joined')
     source_field = relationship('SourceField')
+
+
+class DataPointSet(object):
+    """
+    Non-db object which holds values and metadata for given data point (loc, time)
+    """
+    values: List[float]
+    metric_id: int
+    valid_time: datetime.datetime
+    source_field_id: Optional[int]
+    run_time: Optional[datetime.datetime]
+    derived: bool
+    synthesized: bool
+
+    def __init__(
+            self,
+            values: List[float],
+            metric_id: int,
+            valid_time: datetime.datetime,
+            source_field_id: Optional[int] = None,
+            run_time: Optional[datetime.datetime] = None,
+            derived: bool = False,
+            synthesized: bool = False):
+        self.values = values
+        self.metric_id = metric_id
+        self.valid_time = valid_time
+
+        # Optional fields
+        self.source_field_id = source_field_id
+        self.run_time = run_time
+        self.derived = derived
+        self.synthesized = synthesized
+
+    def min(self) -> float:
+        return min(self.values)
+
+    def max(self) -> float:
+        return max(self.values)
+
+    def median(self) -> float:
+        return float(numpy.median(self.values))
+
+    def mean(self) -> float:
+        return float(numpy.mean(self.values))

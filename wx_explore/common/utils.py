@@ -77,34 +77,24 @@ class memoize(object):
 
 
 class RangeDict(dict):
-    """
-    Adapted from https://stackoverflow.com/a/39358140
-    """
     def __getitem__(self, item):
-        if type(item) == range:
-            for key in self:
-                if item in key:
-                    return self[key]
-            raise KeyError(item)
-        else:
+        try:
             return super().__getitem__(item)
+        except KeyError:
+            if isinstance(item, (int, float)):
+                for k, v in self.items():
+                    if type(k) is range and k.start <= item < k.stop:
+                        return v
+            raise
 
-    def get_any(self, start, end):
-        for i in range(start, end):
+    def get_any(self, r: range):
+        """
+        Returns the first object in the dictionary which has a key contained in the given range.
+        """
+        for i in r:
             try:
                 return self[i]
             except KeyError:
                 continue
 
-
-class TimeRange(object):
-    start: datetime.datetime
-    end: datetime.datetime
-
-    def __contains__(self, other):
-        if isinstance(other, datetime.datetime):
-            return self.start <= other < self.end
-        elif isinstance(other, TimeRange):
-            return self.start <= other.start and other.end <= self.end
-        else:
-            raise ValueError()
+        return None
