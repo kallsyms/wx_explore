@@ -1,3 +1,4 @@
+from typing import List, Any
 import collections
 import datetime
 import functools
@@ -87,14 +88,52 @@ class RangeDict(dict):
                         return v
             raise
 
-    def get_any(self, r: range):
-        """
-        Returns the first object in the dictionary which has a key contained in the given range.
-        """
-        for i in r:
-            try:
-                return self[i]
-            except KeyError:
-                continue
 
-        return None
+class ContinuousTimeList(list):
+    start: datetime.datetime
+    end: datetime.datetime
+    step: datetime.timedelta
+
+    def __init__(self, start: datetime.datetime, end: datetime.datetime, step: datetime.timedelta, vals=None):
+        self.start = start
+        self.end = end
+        self.step = step
+
+        list_len = int((end-start)/step)
+        if vals is None:
+            vals = [None] * list_len
+        if len(vals) != list_len:
+            raise ValueError("Initial values array must have expected length")
+
+        super().__init__(vals)
+
+    def _idx_for_dt(self, dt: datetime.datetime) -> int:
+        return int((dt.timestamp() - self.start.timestamp()) // self.step.seconds)
+
+    def __getitem__(self, key):
+        if isinstance(key, int):
+            return super().__getitem__(key)
+        elif isinstance(key, datetime.datetime):
+            return super().__getitem__(self._idx_for_dt(key))
+        elif isinstance(key, slice):
+            if isinstance(key.start, datetime.datetime):
+                key.start = self._idx_for_dt(key.start)
+            if isinstance(key.stop, datetime.datetime):
+                key.stop = self._idx_for_dt(key.stop)
+            return super().__getitem__(key)
+        else:
+            raise TypeError("index must be int, datetime, or slice")
+
+    def __setitem__(self, key, val):
+        if isinstance(key, int):
+            super().__setitem__(key, val)
+        elif isinstance(key, datetime.datetime):
+            super().__setitem__(self._idx_for_dt(key), val)
+        elif isinstance(key, slice):
+            if isinstance(key.start, datetime.datetime):
+                key.start = self._idx_for_dt(key.start)
+            if isinstance(key.stop, datetime.datetime):
+                key.stop = self._idx_for_dt(key.stop)
+            return super().__setitem__(key, val)
+        else:
+            TypeError("index must be int or datetime")
