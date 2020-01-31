@@ -14,6 +14,7 @@ from wx_explore.common.models import (
 )
 from wx_explore.common.queue import pq
 from wx_explore.common.storage import get_s3_bucket
+from wx_explore.ingest.sources import SOURCE_MODULES
 from wx_explore.web import db
 
 logger = logging.getLogger(__name__)
@@ -129,3 +130,8 @@ def ingest_grib_file(file_path, source):
         db.session.commit()
 
     logger.info("Done saving denormalized data")
+    logger.info("Generating derived fields")
+
+    SOURCE_MODULES[source.short_name].generate_derived(file_path)
+
+    logger.info("Done")
