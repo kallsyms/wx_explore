@@ -201,21 +201,24 @@ def summarize():
                 start = now - timedelta(days=1)
 
     temp_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "2m Temperature", SourceField.projection_id != None).all()
-    rain_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Raining", SourceField.projection_id != None).all()
-    snow_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Snowing", SourceField.projection_id != None).all()
-    wind_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Wind", SourceField.projection_id != None).all()
+    rain_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Rain", SourceField.projection_id != None).all()
+    snow_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Snow", SourceField.projection_id != None).all()
+    wind_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "10m Wind Speed", SourceField.projection_id != None).all()
 
     data_points = load_data_points((lat, lon), start, start + timedelta(days=days),
                                    temp_sourcefields + rain_sourcefields + snow_sourcefields + wind_sourcefields)
+    combined_data_points = combine_models(data_points)
+
+    time_ranges = [(start, start.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1))]
+    for d in range(days):
+        last_end = time_ranges[-1][1]
+        time_ranges.append((last_end, last_end + timedelta(days=1)))
+
     summarizations = []
 
-    for d in range(days):
-        dstart = start + timedelta(days=d)
-        dend = start + timedelta(days=d+1)
+    for dstart, dend in time_ranges:
 
-        combined_data_points = combine_models(filter(lambda d: dstart <= d.valid_time < dend, data_points))
-
-        summary = SummarizedData(dstart, combined_data_points)
+        summary = SummarizedData(dstart, dend, combined_data_points)
         summarizations.append(summary.dict())
 
     return jsonify(summarizations)
