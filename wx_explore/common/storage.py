@@ -145,7 +145,7 @@ def load_data_points(
         data_values: List[float] = array.array("f", raw).tolist()
         data_point = DataPointSet(
             values=data_values,
-            metric_id=fbm.source_field.metric.id,  # XXX: this may cause a ton of DB hits - maybe eagerly load metric from sf?
+            metric_id=fbm.source_field.metric.id,
             valid_time=fbm.valid_time,
             source_field_id=fbm.source_field_id,
             run_time=fbm.run_time,

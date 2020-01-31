@@ -1,6 +1,6 @@
 from geoalchemy2 import Geography
 from shapely import wkb
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, LargeBinary
+from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, LargeBinary, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -21,8 +21,8 @@ class Source(Base):
     __tablename__ = "source"
 
     id = Column(Integer, primary_key=True)
-    short_name = Column(String(8))
-    name = Column(String(128))
+    short_name = Column(String(8), unique=True)
+    name = Column(String(128), unique=True)
     src_url = Column(String(1024))
     last_updated = Column(DateTime)
 
@@ -49,7 +49,7 @@ class Metric(Base):
     __tablename__ = "metric"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(128))
+    name = Column(String(128), unique=True)
     units = Column(String(16))
 
     def serialize(self):
@@ -69,19 +69,22 @@ class SourceField(Base):
     E.g. Composite reflectivity @ entire atmosphere, 2m temps, visibility @ ground
     """
     __tablename__ = "source_field"
+    __table_args__ = (
+        UniqueConstraint('source_id', 'metric_id'),
+    )
 
     id = Column(Integer, primary_key=True)
     source_id = Column(Integer, ForeignKey('source.id'))
-    projection_id = Column(Integer, ForeignKey('projection.id'))
     metric_id = Column(Integer, ForeignKey('metric.id'))
+    projection_id = Column(Integer, ForeignKey('projection.id'))
 
     idx_short_name = Column(String(15))  # e.g. TMP, VIS
     idx_level = Column(String(255))  # e.g. surface, 2 m above ground
     grib_name = Column(String(255))  # e.g. 2 metre temperature
 
-    source = relationship('Source', backref='fields')
+    source = relationship('Source', backref='fields', lazy='joined')
     projection = relationship('Projection')
-    metric = relationship('Metric', backref='fields')
+    metric = relationship('Metric', backref='fields', lazy='joined')
 
     def serialize(self):
         return {
@@ -181,7 +184,7 @@ class FileBandMeta(Base):
     run_time = Column(DateTime)
 
     file_meta = relationship('FileMeta', backref='bands', lazy='joined')
-    source_field = relationship('SourceField')
+    source_field = relationship('SourceField', lazy='joined')
 
 
 class DataPointSet(object):
@@ -224,5 +227,15 @@ class DataPointSet(object):
     def median(self) -> float:
         return float(numpy.median(self.values))
 
+    def median_confidence(self) -> float:
+        vals = numpy.array(self.values)
+        n_within_stddev = (abs(vals - numpy.median(vals)) < numpy.std(vals)).sum()
+        return n_within_stddev / len(vals)
+
     def mean(self) -> float:
         return float(numpy.mean(self.values))
+
+    def mean_confidence(self) -> float:
+        vals = numpy.array(self.values)
+        n_within_stddev = (abs(vals - numpy.mean(vals)) < numpy.std(vals)).sum()
+        return n_within_stddev / len(vals)
