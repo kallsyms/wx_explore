@@ -1,14 +1,15 @@
 import numpy
 
 
-def derive_wind(u, v):
+def cartesian_to_polar(u, v):
     """
-    Derives wind speed and direction (relative to north) from U,V components
+    Transforms U,V into r,theta, with theta being relative to north (instead of east, a.k.a. the x-axis).
+    Mainly for wind U,V to wind speed,direction transformations.
     """
     c = u + v*1j
-    speed = numpy.abs(c)
-    angle = numpy.angle(c, deg=True)
+    r = numpy.abs(c)
+    theta = numpy.angle(c, deg=True)
     # Convert angle relative to the x-axis to a north-relative angle
-    angle -= 90
-    angle = -angle % 360
-    return speed, angle
+    theta -= 90
+    theta = -theta % 360
+    return r, theta

@@ -3,8 +3,7 @@ import sys
 import logging
 import tempfile
 
-from wx_explore.ingest.ingest_common import ingest_grib_file
-from wx_explore.ingest.reduce_grib import get_grib_ranges
+from wx_explore.ingest.grib import get_grib_ranges, ingest_grib_file
 from wx_explore.common.models import Source
 
 

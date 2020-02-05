@@ -4,7 +4,7 @@ from typing import Optional
 import logging
 
 from wx_explore.common.utils import datetime2unix
-from wx_explore.ingest import get_queue
+from wx_explore.ingest.common import get_queue
 from wx_explore.ingest.sources.source import IngestSource
 
 

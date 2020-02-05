@@ -14,6 +14,7 @@ from wx_explore.common.models import (
     Location,
     Metric,
 )
+from wx_explore.common import metrics
 from wx_explore.common.storage import load_data_points
 from wx_explore.common.utils import datetime2unix
 from wx_explore.web import app
@@ -200,10 +201,10 @@ def summarize():
             if start < now - timedelta(days=1):
                 start = now - timedelta(days=1)
 
-    temp_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "2m Temperature", SourceField.projection_id != None).all()
-    rain_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Rain", SourceField.projection_id != None).all()
-    snow_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "Snow", SourceField.projection_id != None).all()
-    wind_sourcefields = SourceField.query.join(Metric).filter(Metric.name == "10m Wind Speed", SourceField.projection_id != None).all()
+    temp_sourcefields = SourceField.query.filter(SourceField.metric == metrics.temp, SourceField.projection_id != None).all()
+    rain_sourcefields = SourceField.query.filter(SourceField.metric == metrics.raining, SourceField.projection_id != None).all()
+    snow_sourcefields = SourceField.query.filter(SourceField.metric == metrics.snowing, SourceField.projection_id != None).all()
+    wind_sourcefields = SourceField.query.filter(SourceField.metric == metrics.wind_speed, SourceField.projection_id != None).all()
 
     data_points = load_data_points((lat, lon), start, start + timedelta(days=days),
                                    temp_sourcefields + rain_sourcefields + snow_sourcefields + wind_sourcefields)

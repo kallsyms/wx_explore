@@ -1,8 +1,5 @@
 #!/usr/bin/env python3
-from sqlalchemy import PrimaryKeyConstraint, UniqueConstraint
-
 from wx_explore.common.models import (
-    Metric,
     Source,
     SourceField,
     Location,
@@ -12,91 +9,8 @@ from wx_explore.web import db
 
 db.create_all()
 
-
-def get_or_create(obj):
-    """
-    Gets the specified object from the DB using the values of primary and unique keys for lookup,
-    or creates the object in the database and returns it.
-    """
-    typ = type(obj)
-    q = db.session.query(typ)
-    constraints = [c for c in typ.__table__.constraints if isinstance(c, (PrimaryKeyConstraint, UniqueConstraint))]
-    for col in typ.__table__.columns:
-        if getattr(obj, col.name) is not None:
-            if any(ccol is col for constraint in constraints for ccol in constraint.columns):
-                q = q.filter(getattr(typ, col.name) == getattr(obj, col.name))
-
-    instance = q.first()
-    if instance is not None:
-        return instance
-    else:
-        db.session.add(obj)
-        # Commit so the result is guaranteed to have an id if applicable
-        db.session.commit()
-        return obj
-
-
-metrics = [
-    Metric(
-        name='2m Temperature',
-        units='K',
-    ),
-    Metric(
-        name='Visibility',
-        units='m',
-    ),
-    Metric(
-        name='Raining',
-        units='',
-    ),
-    Metric(
-        name='Ice',
-        units='',
-    ),
-    Metric(
-        name='Freezing Rain',
-        units='',
-    ),
-    Metric(
-        name='Snowing',
-        units='',
-    ),
-    Metric(
-        name='Composite Reflectivity',
-        units='dbZ',
-    ),
-    Metric(
-        name='Gust Speed',
-        units='m/s',
-    ),
-    Metric(
-        name='Humidity',
-        units='kg/kg',
-    ),
-    Metric(
-        name='Pressure',
-        units='Pa',
-    ),
-    Metric(
-        name='U-Component of Wind',
-        units='m/s',
-    ),
-    Metric(
-        name='V-Component of Wind',
-        units='m/s',
-    ),
-    Metric(
-        name='Wind Direction',
-        units='deg',
-    ),
-    Metric(
-        name='Wind Speed',
-        units='m/s',
-    ),
-]
-
-for i, m in enumerate(metrics):
-    metrics[i] = get_or_create(m)
+# Placed beneath the db.create_all so we know the Metrics table exists
+from wx_explore.common.metrics import ALL_METRICS  # noqa: E402
 
 
 sources = [
@@ -128,67 +42,109 @@ metric_meta = {
     '2m Temperature': {
         'idx_short_name': 'TMP',
         'idx_level': '2 m above ground',
-        'grib_name': '2 metre temperature',
+        'selectors': {
+            'name': '2 metre temperature',
+        },
     },
     'Visibility': {
         'idx_short_name': 'VIS',
         'idx_level': 'surface',
-        'grib_name': 'Visibility',
+        'selectors': {
+            'shortName': 'vis',
+        },
     },
     'Rain': {
         'idx_short_name': 'CRAIN',
         'idx_level': 'surface',
-        'grib_name': 'Categorical rain',
+        'selectors': {
+            'shortName': 'crain',
+            'stepType': 'instant',
+        },
     },
     'Ice': {
         'idx_short_name': 'CICEP',
         'idx_level': 'surface',
-        'grib_name': 'Categorical ice pellets',
+        'selectors': {
+            'shortName': 'cicep',
+            'stepType': 'instant',
+        },
     },
     'Freezing Rain': {
         'idx_short_name': 'CFRZR',
         'idx_level': 'surface',
-        'grib_name': 'Categorical freezing rain',
+        'selectors': {
+            'shortName': 'cfrzr',
+            'stepType': 'instant',
+        },
     },
     'Snow': {
         'idx_short_name': 'CSNOW',
         'idx_level': 'surface',
-        'grib_name': 'Categorical snow',
+        'selectors': {
+            'shortName': 'csnow',
+            'stepType': 'instant',
+        },
     },
     'Composite Reflectivity': {
         'idx_short_name': 'REFC',
         'idx_level': 'entire atmosphere',
-        'grib_name': 'Maximum/Composite radar reflectivity',
+        'selectors': {
+            'shortName': 'refc',
+        },
     },
     '2m Humidity': {
         'idx_short_name': 'SPFH',
         'idx_level': '2 m above ground',
-        'grib_name': 'Specific humidity',
+        'selectors': {
+            'name': 'Specific humidity',
+            'typeOfLevel': 'heightAboveGround',
+            'level': 2,
+        },
     },
     'Surface Pressure': {
         'idx_short_name': 'PRES',
         'idx_level': 'surface',
-        'grib_name': 'Surface pressure',
+        'selectors': {
+            'name': 'Surface pressure',
+        },
     },
-    '10m Wind Direction': {
-        'idx_short_name': 'WDIR',
+    '10m Wind U-component': {
+        'idx_short_name': 'UGRD',
         'idx_level': '10 m above ground',
-        'grib_name': '10 metre wind direction',
+    },
+    '10m Wind V-component': {
+        'idx_short_name': 'VGRD',
+        'idx_level': '10 m above ground',
     },
     '10m Wind Speed': {
         'idx_short_name': 'WIND',
         'idx_level': '10 m above ground',
-        'grib_name': '10 metre wind speed',
+        'selectors': {
+            'shortName': 'wind',
+            'typeOfLevel': 'heightAboveGround',
+            'level': 10,
+        },
+    },
+    '10m Wind Direction': {
+        'idx_short_name': 'WDIR',
+        'idx_level': '10 m above ground',
+        'selectors': {
+            'shortName': 'wdir',
+            'typeOfLevel': 'heightAboveGround',
+            'level': 10,
+        },
     },
     'Gust Speed': {
         'idx_short_name': 'GUST',
         'idx_level': 'surface',
-        'grib_name': 'Wind speed (gust)',
+        'selectors': {
+            'shortName': 'gust',
+        },
     },
 }
 
 for src in sources:
-    for metric in metrics:
+    for metric in ALL_METRICS:
         get_or_create(SourceField(
             source_id=src.id,
             metric_id=metric.id,

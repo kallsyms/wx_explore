@@ -4,13 +4,14 @@ import datetime
 import numpy
 
 from wx_explore.analysis.helpers import get_metric
-from wx_explore.common.utils import (
-    RangeDict,
-    ContinuousTimeList,
-)
+from wx_explore.common import metrics
 from wx_explore.common.models import (
     Metric,
     DataPointSet,
+)
+from wx_explore.common.utils import (
+    RangeDict,
+    ContinuousTimeList,
 )
 
 
@@ -243,7 +244,7 @@ class SummarizedData(object):
             start: datetime.datetime,
             end: datetime.datetime,
             data_points: Iterable[DataPointSet],
-            resolution: datetime.timedelta = datetime.timedelta(hours=1)
+            resolution: datetime.timedelta = datetime.timedelta(hours=1),
     ):
         self.start = start
         self.end = end
@@ -255,7 +256,7 @@ class SummarizedData(object):
         # temps and winds are guaranteed to have values for each time interval
         self.temps = ContinuousTimeList(start, end, resolution)
         self.winds = ContinuousTimeList(start, end, resolution)
-        # but cloud cover and precip are generated from derived fields which could all be empty
+        # but cloud cover and precip are generated from fields which could all be false/empty
         self.cloud_cover = ContinuousTimeList(start, end, resolution, [
             CloudCoverEvent(start, end, 0) for start, end in self.time_buckets()
         ])
@@ -270,13 +271,8 @@ class SummarizedData(object):
 
     def analyze(self):
         # Begin analysis
-        temp_metric = Metric.query.filter(Metric.name == "2m Temperature").first()
-        wind_metric = Metric.query.filter(Metric.name == "10m Wind Speed").first()
-        rain_metric = Metric.query.filter(Metric.name == "Rain").first()
-        snow_metric = Metric.query.filter(Metric.name == "Snow").first()
-
         for data_point in self.data_points:
-            if data_point.metric_id == temp_metric.id:
+            if data_point.metric_id == metrics.temp.id:
                 e = TemperatureEvent(data_point.valid_time, data_point.median())
                 self.temps[e.time] = e
 
@@ -285,20 +281,20 @@ class SummarizedData(object):
                 if self.high is None or e.temperature > self.high.temperature:
                     self.high = e
 
-        for start, end, vals in cluster(filter(lambda d: d.metric_id == rain_metric.id, self.data_points), PrecipEvent.clusterer):
+        for start, end, vals in cluster(filter(lambda d: d.metric_id == metrics.raining.id, self.data_points), PrecipEvent.clusterer):
             e = PrecipEvent(start, end, 'rain', numpy.median(vals))
             self.precip[e.start:e.end] = e
 
-        for start, end, vals in cluster(filter(lambda d: d.metric_id == snow_metric.id, self.data_points), PrecipEvent.clusterer):
+        for start, end, vals in cluster(filter(lambda d: d.metric_id == metrics.snowing.id, self.data_points), PrecipEvent.clusterer):
             e = PrecipEvent(start, end, 'snow', numpy.median(vals))
             self.precip[e.start:e.end] = e
 
-        for start, end, vals in cluster(filter(lambda d: d.metric_id == wind_metric.id, self.data_points), WindEvent.clusterer):
+        for start, end, vals in cluster(filter(lambda d: d.metric_id == metrics.wind_speed.id, self.data_points), WindEvent.clusterer):
             e = WindEvent(start, end, numpy.mean(vals), max(vals))
             self.winds[e.start:e.end] = e
 
     def time_buckets(self) -> Iterable[Tuple[datetime.datetime, datetime.datetime]]:
-        for i in range((self.end - self.start).seconds // self.resolution.seconds):
+        for i in range(int((self.end - self.start).total_seconds() // self.resolution.total_seconds())):
             yield (
                 self.start + (self.resolution * i),
                 self.start + (self.resolution * (i+1)),
@@ -311,7 +307,7 @@ class SummarizedData(object):
         if pe is not None:
             summary += f"{pe.ptype} through the {time_of_day(pe.end)}"
             for we in self.winds[pe.start:]:
-                if we.avg_speed > 15:  # XXX: arbitrary
+                if we is not None and we.avg_speed > 15:  # XXX: arbitrary
                     summary += f", with {we.avg_speed_text} winds gusting to {we.gust_speed}"  # units
             pe2 = self.precip[pe.end]
             if pe2:
@@ -335,11 +331,11 @@ class SummarizedData(object):
 
     def dict(self):
         return {
-            "high": self.high.dict(),
-            "low": self.low.dict(),
-            "temps": [e.dict() for e in self.temps],
-            "winds": [e.dict() for e in self.wind],
-            "cloud_cover": [e.dict() for e in self.cloud_cover],
-            "precip": [e.dict() for e in self.precip],
+            "high": self.high.dict() if self.high else None,
+            "low": self.low.dict() if self.low else None,
+            "temps": [e.dict() if e else None for e in self.temps],
+            "winds": [e.dict() if e else None for e in self.winds],
+            "cloud_cover": [e.dict() if e else None for e in self.cloud_cover],
+            "precip": [e.dict() if e else None for e in self.precip],
             "text": self.text_summary(),
         }

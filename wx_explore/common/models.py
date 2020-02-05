@@ -1,6 +1,6 @@
 from geoalchemy2 import Geography
 from shapely import wkb
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, LargeBinary, UniqueConstraint
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, LargeBinary, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -51,6 +51,8 @@ class Metric(Base):
     id = Column(Integer, primary_key=True)
     name = Column(String(128), unique=True)
     units = Column(String(16))
+    # intermediate metrics aren't displayed to the end user, and are only used for deriving other metrics
+    intermediate = Column(Boolean, nullable=False, default=False)
 
     def serialize(self):
         return {
@@ -80,7 +82,7 @@ class SourceField(Base):
 
     idx_short_name = Column(String(15))  # e.g. TMP, VIS
     idx_level = Column(String(255))  # e.g. surface, 2 m above ground
-    grib_name = Column(String(255))  # e.g. 2 metre temperature
+    selectors = Column(JSONB)  # e.g. {'name': 'Temperature', 'typeOfLevel': 'surface'}. NULL means this field won't be ingested directly
 
     source = relationship('Source', backref='fields', lazy='joined')
     projection = relationship('Projection')
@@ -90,7 +92,6 @@ class SourceField(Base):
         return {
             "id": self.id,
             "source_id": self.source_id,
-            "grib_name": self.grib_name,
             "metric_id": self.metric_id,
         }
 
