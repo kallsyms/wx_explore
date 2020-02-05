@@ -5,12 +5,9 @@ from wx_explore.common.models import (
     Location,
 )
 
-from wx_explore.web import db
-
-db.create_all()
-
-# Placed beneath the db.create_all so we know the Metrics table exists
-from wx_explore.common.metrics import ALL_METRICS  # noqa: E402
+from wx_explore.common.db_utils import get_or_create
+from wx_explore.common.metrics import ALL_METRICS
+from wx_explore.web.core import db
 
 
 sources = [

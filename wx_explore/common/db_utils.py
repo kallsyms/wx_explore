@@ -1,5 +1,5 @@
 from sqlalchemy import PrimaryKeyConstraint, UniqueConstraint
-from wx_explore.web import db
+from wx_explore.web.core import db
 
 
 def get_or_create(obj):

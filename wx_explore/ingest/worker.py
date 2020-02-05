@@ -8,7 +8,7 @@ from wx_explore.common.models import Source
 from wx_explore.common.utils import url_exists
 from wx_explore.ingest.common import get_queue
 from wx_explore.ingest.grib import reduce_grib, ingest_grib_file
-from wx_explore.web import db
+from wx_explore.web.core import db
 
 logger = logging.getLogger(__name__)
 

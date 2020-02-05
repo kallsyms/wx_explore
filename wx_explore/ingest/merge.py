@@ -11,7 +11,7 @@ from wx_explore.common.models import (
     FileBandMeta,
 )
 from wx_explore.common.storage import get_s3_bucket, s3_request
-from wx_explore.web import db
+from wx_explore.web.core import db
 
 logger = logging.getLogger(__name__)
 

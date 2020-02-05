@@ -9,7 +9,7 @@ from wx_explore.common.models import (
 )
 from wx_explore.common.utils import get_url
 from wx_explore.ingest.common import get_or_create_projection, create_files, get_source_module
-from wx_explore.web import db
+from wx_explore.web.core import db
 
 logger = logging.getLogger(__name__)
 

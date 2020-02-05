@@ -7,7 +7,7 @@ from wx_explore.common.models import (
     FileBandMeta,
 )
 from wx_explore.common.storage import get_s3_bucket
-from wx_explore.web import db
+from wx_explore.web.core import db
 
 
 def clean_old_datas():

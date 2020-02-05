@@ -15,7 +15,7 @@ from wx_explore.common.models import (
 from wx_explore.common.queue import pq
 from wx_explore.common.storage import get_s3_bucket
 from wx_explore.ingest.sources.source import IngestSource
-from wx_explore.web import db
+from wx_explore.web.core import db
 
 logger = logging.getLogger(__name__)
 
