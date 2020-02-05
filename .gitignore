@@ -2,3 +2,4 @@
 virtualenv/
 .python_packages
 tmp/
+.env*

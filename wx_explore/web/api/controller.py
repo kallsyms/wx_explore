@@ -4,12 +4,17 @@ from flask import Blueprint, abort, jsonify, request
 import collections
 import sqlalchemy
 
+from wx_explore.analysis.summarize import (
+    combine_models,
+    SummarizedData,
+)
 from wx_explore.common.models import (
     Source,
     SourceField,
     Location,
     Metric,
 )
+from wx_explore.common import metrics
 from wx_explore.common.storage import load_data_points
 from wx_explore.common.utils import datetime2unix
 from wx_explore.web import app
@@ -144,7 +149,7 @@ def wx_for_location():
 
     requested_source_fields = SourceField.query.filter(
         SourceField.metric_id.in_(metric_ids),
-        SourceField.projection_id != None,
+        SourceField.projection_id != None,  # noqa: E711
     ).all()
 
     data_points = load_data_points((lat, lon), start, end, requested_source_fields)
@@ -152,11 +157,12 @@ def wx_for_location():
     # valid time -> data points
     datas = collections.defaultdict(list)
 
-    for fbm, values in data_points.items():
-        datas[datetime2unix(fbm.valid_time)].append({
-            'run_time': datetime2unix(fbm.run_time),
-            'src_field_id': fbm.source_field_id,
-            'value': values[0],  # TODO
+    for dp in data_points:
+        datas[datetime2unix(dp.valid_time)].append({
+            'run_time': datetime2unix(dp.run_time),
+            'src_field_id': dp.source_field_id,
+            'value': dp.median(),
+            'raw_values': dp.values,
         })
 
     wx = {
@@ -165,3 +171,55 @@ def wx_for_location():
     }
 
     return jsonify(wx)
+
+
+@api.route('/wx/summarize')
+def summarize():
+    """
+    Summarizes the weather in a natural way.
+    Returns a list of objects describing a summary of the weather (one per day).
+    """
+    lat = float(request.args['lat'])
+    lon = float(request.args['lon'])
+    start = request.args.get('start', type=int)
+    days = int(request.args['days'])
+
+    if lat > 90 or lat < -90 or lon > 180 or lon < -180:
+        abort(400)
+
+    if days > 10:
+        abort(400)
+
+    # TODO: This should be done relative to the location's local TZ
+    now = datetime.utcnow()
+    if start is None:
+        start = now
+    else:
+        start = datetime.utcfromtimestamp(start)
+
+        if not app.debug:
+            if start < now - timedelta(days=1):
+                start = now - timedelta(days=1)
+
+    temp_sourcefields = SourceField.query.filter(SourceField.metric == metrics.temp, SourceField.projection_id != None).all()
+    rain_sourcefields = SourceField.query.filter(SourceField.metric == metrics.raining, SourceField.projection_id != None).all()
+    snow_sourcefields = SourceField.query.filter(SourceField.metric == metrics.snowing, SourceField.projection_id != None).all()
+    wind_sourcefields = SourceField.query.filter(SourceField.metric == metrics.wind_speed, SourceField.projection_id != None).all()
+
+    data_points = load_data_points((lat, lon), start, start + timedelta(days=days),
+                                   temp_sourcefields + rain_sourcefields + snow_sourcefields + wind_sourcefields)
+    combined_data_points = combine_models(data_points)
+
+    time_ranges = [(start, start.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1))]
+    for d in range(days):
+        last_end = time_ranges[-1][1]
+        time_ranges.append((last_end, last_end + timedelta(days=1)))
+
+    summarizations = []
+
+    for dstart, dend in time_ranges:
+
+        summary = SummarizedData(dstart, dend, combined_data_points)
+        summarizations.append(summary.dict())
+
+    return jsonify(summarizations)

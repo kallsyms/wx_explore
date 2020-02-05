@@ -1,10 +1,13 @@
-from datetime import datetime
 from geoalchemy2 import Geography
 from shapely import wkb
-from sqlalchemy import Column, Integer, String, DateTime, ForeignKey, LargeBinary
+from sqlalchemy import Column, Integer, String, Boolean, DateTime, ForeignKey, LargeBinary, UniqueConstraint
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.ext.declarative import declarative_base
+from typing import List, Optional
+
+import datetime
+import numpy
 
 
 Base = declarative_base()
@@ -18,8 +21,8 @@ class Source(Base):
     __tablename__ = "source"
 
     id = Column(Integer, primary_key=True)
-    short_name = Column(String(8))
-    name = Column(String(128))
+    short_name = Column(String(8), unique=True)
+    name = Column(String(128), unique=True)
     src_url = Column(String(1024))
     last_updated = Column(DateTime)
 
@@ -46,8 +49,10 @@ class Metric(Base):
     __tablename__ = "metric"
 
     id = Column(Integer, primary_key=True)
-    name = Column(String(128))
+    name = Column(String(128), unique=True)
     units = Column(String(16))
+    # intermediate metrics aren't displayed to the end user, and are only used for deriving other metrics
+    intermediate = Column(Boolean, nullable=False, default=False)
 
     def serialize(self):
         return {
@@ -66,25 +71,27 @@ class SourceField(Base):
     E.g. Composite reflectivity @ entire atmosphere, 2m temps, visibility @ ground
     """
     __tablename__ = "source_field"
+    __table_args__ = (
+        UniqueConstraint('source_id', 'metric_id'),
+    )
 
     id = Column(Integer, primary_key=True)
     source_id = Column(Integer, ForeignKey('source.id'))
-    projection_id = Column(Integer, ForeignKey('projection.id'))
     metric_id = Column(Integer, ForeignKey('metric.id'))
+    projection_id = Column(Integer, ForeignKey('projection.id'))
 
     idx_short_name = Column(String(15))  # e.g. TMP, VIS
     idx_level = Column(String(255))  # e.g. surface, 2 m above ground
-    grib_name = Column(String(255))  # e.g. 2 metre temperature
+    selectors = Column(JSONB)  # e.g. {'name': 'Temperature', 'typeOfLevel': 'surface'}. NULL means this field won't be ingested directly
 
-    source = relationship('Source', backref='fields')
+    source = relationship('Source', backref='fields', lazy='joined')
     projection = relationship('Projection')
-    metric = relationship('Metric', backref='fields')
+    metric = relationship('Metric', backref='fields', lazy='joined')
 
     def serialize(self):
         return {
             "id": self.id,
             "source_id": self.source_id,
-            "grib_name": self.grib_name,
             "metric_id": self.metric_id,
         }
 
@@ -152,7 +159,7 @@ class FileMeta(Base):
     __tablename__ = "file_meta"
     file_name = Column(String(4096), primary_key=True)
     projection_id = Column(Integer, ForeignKey('projection.id'))
-    ctime = Column(DateTime, default=datetime.utcnow)
+    ctime = Column(DateTime, default=datetime.datetime.utcnow)
     loc_size = Column(Integer)
 
     projection = relationship('Projection')
@@ -178,4 +185,58 @@ class FileBandMeta(Base):
     run_time = Column(DateTime)
 
     file_meta = relationship('FileMeta', backref='bands', lazy='joined')
-    source_field = relationship('SourceField')
+    source_field = relationship('SourceField', lazy='joined')
+
+
+class DataPointSet(object):
+    """
+    Non-db object which holds values and metadata for given data point (loc, time)
+    """
+    values: List[float]
+    metric_id: int
+    valid_time: datetime.datetime
+    source_field_id: Optional[int]
+    run_time: Optional[datetime.datetime]
+    derived: bool
+    synthesized: bool
+
+    def __init__(
+            self,
+            values: List[float],
+            metric_id: int,
+            valid_time: datetime.datetime,
+            source_field_id: Optional[int] = None,
+            run_time: Optional[datetime.datetime] = None,
+            derived: bool = False,
+            synthesized: bool = False):
+        self.values = values
+        self.metric_id = metric_id
+        self.valid_time = valid_time
+
+        # Optional fields
+        self.source_field_id = source_field_id
+        self.run_time = run_time
+        self.derived = derived
+        self.synthesized = synthesized
+
+    def min(self) -> float:
+        return min(self.values)
+
+    def max(self) -> float:
+        return max(self.values)
+
+    def median(self) -> float:
+        return float(numpy.median(self.values))
+
+    def median_confidence(self) -> float:
+        vals = numpy.array(self.values)
+        n_within_stddev = (abs(vals - numpy.median(vals)) < numpy.std(vals)).sum()
+        return n_within_stddev / len(vals)
+
+    def mean(self) -> float:
+        return float(numpy.mean(self.values))
+
+    def mean_confidence(self) -> float:
+        vals = numpy.array(self.values)
+        n_within_stddev = (abs(vals - numpy.mean(vals)) < numpy.std(vals)).sum()
+        return n_within_stddev / len(vals)

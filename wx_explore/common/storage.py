@@ -1,3 +1,5 @@
+from typing import Tuple, Optional, Iterable, Dict, List
+
 import array
 import boto3
 import concurrent.futures
@@ -12,6 +14,7 @@ from wx_explore.common.location import get_xy_for_coord
 from wx_explore.common.models import (
     SourceField,
     FileBandMeta,
+    DataPointSet,
 )
 
 
@@ -88,18 +91,27 @@ def load_file_chunk(fm, coords):
     return s3_request(fm.file_name, headers={'Range': f'bytes={start}-{end-1}'}).content
 
 
-def load_data_points(coords, start, end, source_fields=None):
+def load_data_points(
+        coords: Tuple[float, float],
+        start: datetime.datetime,
+        end: datetime.datetime,
+        source_fields: Optional[Iterable[SourceField]] = None
+) -> List[DataPointSet]:
+
     if source_fields is None:
         source_fields = SourceField.query.all()
 
+    # Determine all valid source fields (fields in source_fields which cover the given coords),
+    # and the x,y for projection used in any valid source field.
     valid_source_fields = []
-    locs = {}
+    locs: Dict[int, Tuple[float, float]] = {}
     for sf in source_fields:
         if sf.projection_id in locs and locs[sf.projection_id] is None:
             continue
 
         if sf.projection_id not in locs:
             loc = get_xy_for_coord(sf.projection, coords)
+            # Skip if given projection does not cover coords
             if loc is None:
                 continue
 
@@ -107,7 +119,7 @@ def load_data_points(coords, start, end, source_fields=None):
 
         valid_source_fields.append(sf)
 
-    fbms = FileBandMeta.query.filter(
+    fbms: List[FileBandMeta] = FileBandMeta.query.filter(
         FileBandMeta.source_field_id.in_([sf.id for sf in valid_source_fields]),
         FileBandMeta.valid_time >= start,
         FileBandMeta.valid_time < end,
@@ -118,7 +130,8 @@ def load_data_points(coords, start, end, source_fields=None):
 
     file_contents = {}
 
-    # Read them in
+    # Read them in (in parallel)
+    # TODO: use asyncio here instead once everything else is ported?
     with concurrent.futures.ThreadPoolExecutor() as executor:
         futures = {executor.submit(load_file_chunk, fm, locs[fm.projection_id]): fm for fm in file_metas}
         for future in concurrent.futures.as_completed(futures):
@@ -126,11 +139,18 @@ def load_data_points(coords, start, end, source_fields=None):
             file_contents[fm.file_name] = future.result()
 
     # filebandmeta -> values
-    data_points = {}
-
+    data_points = []
     for fbm in fbms:
         raw = file_contents[fbm.file_name][fbm.offset:fbm.offset+(4*fbm.vals_per_loc)]
-        data_values = array.array("f", raw).tolist()
-        data_points[fbm] = data_values
+        data_values: List[float] = array.array("f", raw).tolist()
+        data_point = DataPointSet(
+            values=data_values,
+            metric_id=fbm.source_field.metric.id,
+            valid_time=fbm.valid_time,
+            source_field_id=fbm.source_field_id,
+            run_time=fbm.run_time,
+        )
+
+        data_points.append(data_point)
 
     return data_points

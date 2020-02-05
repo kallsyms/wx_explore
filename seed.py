@@ -1,7 +1,5 @@
 #!/usr/bin/env python3
-
 from wx_explore.common.models import (
-    Metric,
     Source,
     SourceField,
     Location,
@@ -11,143 +9,147 @@ from wx_explore.web import db
 
 db.create_all()
 
-metrics = {
-    'tmp': Metric(
-        name='2m Temperature',
-        units='C',
-    ),
-    'vis': Metric(
-        name='Visibility',
-        units='m',
-    ),
-    'rain': Metric(
-        name='Raining',
-        units='',
-    ),
-    'snow': Metric(
-        name='Snowing',
-        units='',
-    ),
-}
+# Placed beneath the db.create_all so we know the Metrics table exists
+from wx_explore.common.metrics import ALL_METRICS  # noqa: E402
 
-db.session.add_all(metrics.values())
-db.session.commit()
 
-sources = {
-    'hrrr': Source(
+sources = [
+    Source(
         short_name='hrrr',
         name='HRRR 2D Surface Data (Sub-Hourly)',
         src_url='http://www.nco.ncep.noaa.gov/pmb/products/hrrr/',
         last_updated=None,
     ),
-    'nam': Source(
+    Source(
         short_name='nam',
         name='North American Model',
         src_url='https://www.nco.ncep.noaa.gov/pmb/products/nam/',
         last_updated=None,
     ),
-    'gfs': Source(
+    Source(
         short_name='gfs',
         name='Global Forecast System',
         src_url='https://www.nco.ncep.noaa.gov/pmb/products/gfs/',
         last_updated=None,
     ),
-}
-
-db.session.add_all(sources.values())
-db.session.commit()
-
-source_fields = [
-    SourceField(
-        source_id=sources['hrrr'].id,
-        idx_short_name='TMP',
-        metric_id=metrics['tmp'].id,
-        idx_level='2 m above ground',
-        grib_name='2 metre temperature',
-    ),
-    SourceField(
-        source_id=sources['hrrr'].id,
-        idx_short_name='VIS',
-        metric_id=metrics['vis'].id,
-        idx_level='surface',
-        grib_name='Visibility',
-    ),
-    SourceField(
-        source_id=sources['hrrr'].id,
-        idx_short_name='CRAIN',
-        metric_id=metrics['rain'].id,
-        idx_level='surface',
-        grib_name='Categorical rain',
-    ),
-    SourceField(
-        source_id=sources['hrrr'].id,
-        idx_short_name='CSNOW',
-        metric_id=metrics['snow'].id,
-        idx_level='surface',
-        grib_name='Categorical snow',
-    ),
-
-    SourceField(
-        source_id=sources['nam'].id,
-        idx_short_name='TMP',
-        metric_id=metrics['tmp'].id,
-        idx_level='2 m above ground',
-        grib_name='2 metre temperature',
-    ),
-    SourceField(
-        source_id=sources['nam'].id,
-        idx_short_name='VIS',
-        metric_id=metrics['vis'].id,
-        idx_level='surface',
-        grib_name='Visibility',
-    ),
-    SourceField(
-        source_id=sources['nam'].id,
-        idx_short_name='CRAIN',
-        metric_id=metrics['rain'].id,
-        idx_level='surface',
-        grib_name='Categorical rain',
-    ),
-    SourceField(
-        source_id=sources['nam'].id,
-        idx_short_name='CSNOW',
-        metric_id=metrics['snow'].id,
-        idx_level='surface',
-        grib_name='Categorical snow',
-    ),
-
-    SourceField(
-        source_id=sources['gfs'].id,
-        idx_short_name='TMP',
-        metric_id=metrics['tmp'].id,
-        idx_level='2 m above ground',
-        grib_name='2 metre temperature',
-    ),
-    SourceField(
-        source_id=sources['gfs'].id,
-        idx_short_name='VIS',
-        metric_id=metrics['vis'].id,
-        idx_level='surface',
-        grib_name='Visibility',
-    ),
-    SourceField(
-        source_id=sources['gfs'].id,
-        idx_short_name='CRAIN',
-        metric_id=metrics['rain'].id,
-        idx_level='surface',
-        grib_name='Categorical rain',
-    ),
-    SourceField(
-        source_id=sources['gfs'].id,
-        idx_short_name='CSNOW',
-        metric_id=metrics['snow'].id,
-        idx_level='surface',
-        grib_name='Categorical snow',
-    ),
 ]
 
-db.session.add_all(source_fields)
-db.session.commit()
+for i, s in enumerate(sources):
+    sources[i] = get_or_create(s)
+
+
+metric_meta = {
+    '2m Temperature': {
+        'idx_short_name': 'TMP',
+        'idx_level': '2 m above ground',
+        'selectors': {
+            'name': '2 metre temperature',
+        },
+    },
+    'Visibility': {
+        'idx_short_name': 'VIS',
+        'idx_level': 'surface',
+        'selectors': {
+            'shortName': 'vis',
+        },
+    },
+    'Rain': {
+        'idx_short_name': 'CRAIN',
+        'idx_level': 'surface',
+        'selectors': {
+            'shortName': 'crain',
+            'stepType': 'instant',
+        },
+    },
+    'Ice': {
+        'idx_short_name': 'CICEP',
+        'idx_level': 'surface',
+        'selectors': {
+            'shortName': 'cicep',
+            'stepType': 'instant',
+        },
+    },
+    'Freezing Rain': {
+        'idx_short_name': 'CFRZR',
+        'idx_level': 'surface',
+        'selectors': {
+            'shortName': 'cfrzr',
+            'stepType': 'instant',
+        },
+    },
+    'Snow': {
+        'idx_short_name': 'CSNOW',
+        'idx_level': 'surface',
+        'selectors': {
+            'shortName': 'csnow',
+            'stepType': 'instant',
+        },
+    },
+    'Composite Reflectivity': {
+        'idx_short_name': 'REFC',
+        'idx_level': 'entire atmosphere',
+        'selectors': {
+            'shortName': 'refc',
+        },
+    },
+    '2m Humidity': {
+        'idx_short_name': 'SPFH',
+        'idx_level': '2 m above ground',
+        'selectors': {
+            'name': 'Specific humidity',
+            'typeOfLevel': 'heightAboveGround',
+            'level': 2,
+        },
+    },
+    'Surface Pressure': {
+        'idx_short_name': 'PRES',
+        'idx_level': 'surface',
+        'selectors': {
+            'name': 'Surface pressure',
+        },
+    },
+    '10m Wind U-component': {
+        'idx_short_name': 'UGRD',
+        'idx_level': '10 m above ground',
+    },
+    '10m Wind V-component': {
+        'idx_short_name': 'VGRD',
+        'idx_level': '10 m above ground',
+    },
+    '10m Wind Speed': {
+        'idx_short_name': 'WIND',
+        'idx_level': '10 m above ground',
+        'selectors': {
+            'shortName': 'wind',
+            'typeOfLevel': 'heightAboveGround',
+            'level': 10,
+        },
+    },
+    '10m Wind Direction': {
+        'idx_short_name': 'WDIR',
+        'idx_level': '10 m above ground',
+        'selectors': {
+            'shortName': 'wdir',
+            'typeOfLevel': 'heightAboveGround',
+            'level': 10,
+        },
+    },
+    'Gust Speed': {
+        'idx_short_name': 'GUST',
+        'idx_level': 'surface',
+        'selectors': {
+            'shortName': 'gust',
+        },
+    },
+}
+
+for src in sources:
+    for metric in ALL_METRICS:
+        get_or_create(SourceField(
+            source_id=src.id,
+            metric_id=metric.id,
+            **metric_meta[metric.name],
+        ))
 
 
 ###
