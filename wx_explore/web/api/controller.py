@@ -17,7 +17,7 @@ from wx_explore.common.models import (
 from wx_explore.common import metrics
 from wx_explore.common.storage import load_data_points
 from wx_explore.common.utils import datetime2unix
-from wx_explore.web import app
+from wx_explore.web.app import app
 
 
 api = Blueprint('api', __name__, url_prefix='/api')
