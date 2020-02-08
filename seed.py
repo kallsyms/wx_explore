@@ -138,6 +138,14 @@ metric_meta = {
             'shortName': 'gust',
         },
     },
+    'Cloud Cover': {
+        'idx_short_name': 'TCDC',
+        'idx_level': 'entire atmosphere',
+        'selectors': {
+            'shortName': 'tcc',
+            'typeOfLevel': 'atmosphere',
+        },
+    },
 }
 
 for src in sources:

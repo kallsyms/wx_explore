@@ -60,6 +60,10 @@ gust_speed = get_or_create(Metric(
     name='Gust Speed',
     units='m/s',
 ))
+cloud_cover = get_or_create(Metric(
+    name='Cloud Cover',
+    units='%',
+))
 
 ALL_METRICS = [
     temp,
@@ -76,4 +80,5 @@ ALL_METRICS = [
     wind_speed,
     wind_direction,
     gust_speed,
+    cloud_cover,
 ]

@@ -9,6 +9,8 @@ from wx_explore.ingest.sources.source import IngestSource
 
 
 class NAM(IngestSource):
+    SOURCE_NAME = "nam"
+
     @staticmethod
     def queue(
             time_min: int = 0,

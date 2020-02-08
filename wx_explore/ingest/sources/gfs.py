@@ -9,6 +9,8 @@ from wx_explore.ingest.sources.source import IngestSource
 
 
 class GFS(IngestSource):
+    SOURCE_NAME = "gfs"
+
     @staticmethod
     def queue(
             time_min: int = 0,
