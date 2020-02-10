@@ -2,8 +2,12 @@ from typing import List, Callable, Iterable, Dict, Iterator, Tuple, Optional, Ma
 
 import datetime
 import numpy
+import itertools
 
-from wx_explore.analysis.helpers import get_metric
+from wx_explore.analysis.helpers import (
+    get_metric,
+    group_by_time,
+)
 from wx_explore.common import metrics
 from wx_explore.common.models import (
     Metric,
@@ -37,35 +41,6 @@ def combine_models(model_data: Iterable[DataPointSet]) -> List[DataPointSet]:
     return list(combined_sets.values())
 
 
-def cluster(
-        data_points: Iterable[DataPointSet],
-        in_cluster: Callable[[float, List[float]], bool] = lambda x, _: bool(x),
-        time_threshold=datetime.timedelta(hours=3),
-) -> Iterator[Tuple[datetime.datetime, datetime.datetime, List[float]]]:
-    """
-    Clusters values in the given source field in loc_data.
-    """
-    first = None
-    last = None
-    values: List[float] = []
-
-    for data_point in sorted(data_points, key=lambda d: d.valid_time):
-        v = data_point.median()
-
-        if not in_cluster(v, values) and last is not None and data_point.valid_time - last > time_threshold:
-            yield (first, last, values)
-            first = None
-            last = None
-            values = []
-
-        if in_cluster(v, values) and first is None:
-            first = data_point.valid_time
-
-        if in_cluster(v, values):
-            last = data_point.valid_time
-            values.append(v)
-
-
 def time_of_day(dt):
     TIME_RANGES = RangeDict({
         range(0, 6): 'night',
@@ -82,10 +57,6 @@ class TimeRangeEvent(object):
     CLASSIFICATIONS: Mapping[float, str]
     start: datetime.datetime
     end: datetime.datetime
-
-    @classmethod
-    def clusterer(cls, v: float, prior: List[float]) -> bool:
-        return len(prior) == 0 or cls.CLASSIFICATIONS[v] == cls.CLASSIFICATIONS[prior[-1]]
 
     def __init__(self, start: datetime.datetime, end: datetime.datetime):
         self.start = start
@@ -116,44 +87,11 @@ class TemperatureEvent(object):
 
     def dict(self):
         return {
-            "time": self.time,
             "temperature": self.temperature,
         }
 
 
-class PrecipEvent(TimeRangeEvent):
-    # dbZ
-    CLASSIFICATIONS = RangeDict({
-        range(15, 30): 'light',
-        range(30, 40): 'moderate',
-        range(40, 55): 'heavy',
-        range(55, 999): 'extreme',
-    })
-
-    ptype: str
-    intensity: float
-
-    @staticmethod
-    def clusterer(refl: float, prior: List[float]) -> bool:
-        return refl >= 15 and (len(prior) == 0 or PrecipEvent.CLASSIFICATIONS[refl] == PrecipEvent.CLASSIFICATIONS[prior[-1]])
-
-    def __init__(self, start: datetime.datetime, end: datetime.datetime, ptype: str, intensity: float):
-        super().__init__(start, end)
-        self.ptype = ptype
-        self.intensity = intensity
-
-    def __bool__(self) -> bool:
-        return self.intensity > 0
-
-    def dict(self):
-        return {**super().dict(), **{
-            "type": self.ptype,
-            "intensity": self.intensity,
-            "intensity_str": self.CLASSIFICATIONS[self.intensity],
-        }}
-
-
-class WindEvent(TimeRangeEvent):
+class WindEvent(object):
     # XXX: what units are these in?
     CLASSIFICATIONS = RangeDict({
         range(0, 15): 'light',
@@ -163,12 +101,27 @@ class WindEvent(TimeRangeEvent):
         range(100, 999): 'hurricane force',
     })
 
+    DIRECTION_CLASSIFICATION = RangeDict({
+        range(0, 23): "N",
+        range(23, 68): "NE",
+        range(68, 113): "E",
+        range(113, 158): "SE",
+        range(158, 203): "S",
+        range(203, 248): "SW",
+        range(248, 293): "W",
+        range(293, 338): "NW",
+        range(338, 361): "N",
+    })
+
+    time: datetime.datetime
     avg_speed: float
+    direction: float
     gust_speed: float
 
-    def __init__(self, start: datetime.datetime, end: datetime.datetime, avg_speed: float, gust_speed: float):
-        super().__init__(start, end)
+    def __init__(self, time: datetime.datetime, avg_speed: float, direction: float, gust_speed: float):
+        self.time = time
         self.avg_speed = avg_speed
+        self.direction = direction
         self.gust_speed = gust_speed
 
     @property
@@ -176,16 +129,22 @@ class WindEvent(TimeRangeEvent):
         return self.CLASSIFICATIONS[self.avg_speed]
 
     @property
+    def direction_text(self):
+        return self.DIRECTION_CLASSIFICATION[self.direction]
+
+    @property
     def gust_speed_text(self):
         return self.CLASSIFICATIONS[self.gust_speed]
 
     def dict(self):
-        return {**super().dict(), **{
-            "average": self.avg_speed,
-            "average_str": self.avg_speed_text,
+        return {
+            "average_speed": self.avg_speed,
+            "average_speed_str": self.avg_speed_text,
+            "direction": self.direction,
+            "direction_str": self.direction_text,
             "gust": self.gust_speed,
             "gust_str": self.gust_speed_text,
-        }}
+        }
 
 
 class CloudCoverEvent(TimeRangeEvent):
@@ -198,23 +157,46 @@ class CloudCoverEvent(TimeRangeEvent):
         range(88, 101): 'cloudy',
     })
 
-    cover: int
+    cover: str
 
-    def __init__(self, start: datetime.datetime, end: datetime.datetime, cover: int):
+    def __init__(self, start: datetime.datetime, end: datetime.datetime, cover: str):
         super().__init__(start, end)
         self.cover = cover
 
     def __bool__(self) -> bool:
-        return self.cover > 0
-
-    @property
-    def cover_text(self):
-        return self.CLASSIFICATIONS[self.cover]
+        return self.cover != 'clear'
 
     def dict(self):
         return {**super().dict(), **{
             "cover": self.cover,
-            "cover_str": self.cover_text,
+        }}
+
+
+class PrecipEvent(TimeRangeEvent):
+    # dbZ
+    CLASSIFICATIONS = RangeDict({
+        range(0, 15): 'clear',
+        range(15, 30): 'light',
+        range(30, 40): 'moderate',
+        range(40, 55): 'heavy',
+        range(55, 999): 'extreme',
+    })
+
+    ptype: str
+    intensity: str
+
+    def __init__(self, start: datetime.datetime, end: datetime.datetime, ptype: str, intensity: str):
+        super().__init__(start, end)
+        self.ptype = ptype
+        self.intensity = intensity
+
+    def __bool__(self) -> bool:
+        return self.intensity != 'clear'
+
+    def dict(self):
+        return {**super().dict(), **{
+            "type": self.ptype,
+            "intensity": self.intensity,
         }}
 
 
@@ -251,17 +233,17 @@ class SummarizedData(object):
         self.resolution = resolution
 
         # Bound data points to within the specified start,end
-        self.data_points = list(filter(lambda d: start <= d.valid_time < end, data_points))
+        self.data_points = sorted(filter(lambda d: start <= d.valid_time < end, data_points), key=lambda p: p.valid_time)
 
-        # temps and winds are guaranteed to have values for each time interval
+        # temps, winds, and cloud cover are guaranteed to have values for each time interval
         self.temps = ContinuousTimeList(start, end, resolution)
         self.winds = ContinuousTimeList(start, end, resolution)
-        # but cloud cover and precip are generated from fields which could all be false/empty
         self.cloud_cover = ContinuousTimeList(start, end, resolution, [
-            CloudCoverEvent(start, end, 0) for start, end in self.time_buckets()
+            CloudCoverEvent(self.start, self.end, 'unknown') for _ in self.time_buckets()
         ])
+        # but precip is generated from fields which could all be false/empty
         self.precip = ContinuousTimeList(start, end, resolution, [
-            PrecipEvent(start, end, '', 0) for start, end in self.time_buckets()
+            PrecipEvent(start, end, '', PrecipEvent.CLASSIFICATIONS[0]) for start, end in self.time_buckets()
         ])
 
         self.low = None
@@ -269,8 +251,10 @@ class SummarizedData(object):
 
         self.analyze()
 
+    def points_for_metric(self, m: Metric) -> List[DataPointSet]:
+        return list(filter(lambda d: d.metric_id == m.id, self.data_points))
+
     def analyze(self):
-        # Begin analysis
         for data_point in self.data_points:
             if data_point.metric_id == metrics.temp.id:
                 e = TemperatureEvent(data_point.valid_time, data_point.median())
@@ -281,17 +265,46 @@ class SummarizedData(object):
                 if self.high is None or e.temperature > self.high.temperature:
                     self.high = e
 
-        for start, end, vals in cluster(filter(lambda d: d.metric_id == metrics.raining.id, self.data_points), PrecipEvent.clusterer):
-            e = PrecipEvent(start, end, 'rain', numpy.median(vals))
+        for valid_time, (wind_speed, wind_direction, gust_speed) in group_by_time([
+                self.points_for_metric(metrics.wind_speed),
+                self.points_for_metric(metrics.wind_direction),
+                self.points_for_metric(metrics.gust_speed),
+        ]):
+            e = WindEvent(valid_time, wind_speed.median(), wind_direction.median(), gust_speed.median())
+            self.winds[e.time] = e
+
+        for cover, grp in itertools.groupby(self.points_for_metric(metrics.cloud_cover), key=lambda p: CloudCoverEvent.CLASSIFICATIONS[p.median()]):
+            grp = list(grp)
+            start = grp[0].valid_time
+            end = grp[-1].valid_time
+            e = CloudCoverEvent(start, end, cover)
+            self.cloud_cover[e.start:e.end] = e
+
+        for intensity, grp in itertools.groupby(
+                [(time, rain, refl) for time, (rain, refl) in group_by_time([
+                    self.points_for_metric(metrics.raining),
+                    self.points_for_metric(metrics.composite_reflectivity)])],
+                key=lambda time, raining, refl: PrecipEvent.CLASSIFICATIONS[refl.median()]):
+            grp = list(grp)
+            start = grp[0][0]
+            end = grp[-1][0]
+            e = PrecipEvent(start, end, 'rain', intensity)
             self.precip[e.start:e.end] = e
 
-        for start, end, vals in cluster(filter(lambda d: d.metric_id == metrics.snowing.id, self.data_points), PrecipEvent.clusterer):
-            e = PrecipEvent(start, end, 'snow', numpy.median(vals))
-            self.precip[e.start:e.end] = e
-
-        for start, end, vals in cluster(filter(lambda d: d.metric_id == metrics.wind_speed.id, self.data_points), WindEvent.clusterer):
-            e = WindEvent(start, end, numpy.mean(vals), max(vals))
-            self.winds[e.start:e.end] = e
+        for intensity, grp in itertools.groupby(
+                [(time, snow, refl) for time, (snow, refl) in group_by_time([
+                    self.points_for_metric(metrics.snowing),
+                    self.points_for_metric(metrics.composite_reflectivity)])],
+                key=lambda time, snowing, refl: PrecipEvent.CLASSIFICATIONS[refl.median()]):
+            grp = list(grp)
+            start = grp[0][0]
+            end = grp[-1][0]
+            e = PrecipEvent(start, end, 'snow', intensity)
+            for t, pe in self.precip.enumerate(e.start, e.end):
+                if pe.ptype == 'rain':
+                    pe.ptype = 'mix'
+                else:
+                    self.precip[t] = e
 
     def time_buckets(self) -> Iterable[Tuple[datetime.datetime, datetime.datetime]]:
         for i in range(int((self.end - self.start).total_seconds() // self.resolution.total_seconds())):
@@ -304,11 +317,14 @@ class SummarizedData(object):
         summary = ""
 
         pe = self.precip[rel_time]
-        if pe is not None:
+        if pe:
             summary += f"{pe.ptype} through the {time_of_day(pe.end)}"
             for we in self.winds[pe.start:]:
                 if we is not None and we.avg_speed > 15:  # XXX: arbitrary
-                    summary += f", with {we.avg_speed_text} winds gusting to {we.gust_speed}"  # units
+                    summary += f", with {we.avg_speed_text} winds"  # units
+                    if we.gust_speed > we.avg_speed + 10:  # XXX: also arbitrary
+                        summary += f" gusting to {we.gust_speed}"
+                    break
             pe2 = self.precip[pe.end]
             if pe2:
                 summary += f", changing into {pe2.ptype} around {pe2.start.hour}"
@@ -317,7 +333,7 @@ class SummarizedData(object):
             end_time = time_of_day(sky_cond.end)
             if sky_cond.end.hour > 17:
                 end_time = "day"
-            summary += f"{sky_cond.cover_text} through the {end_time}"
+            summary += f"{sky_cond.cover} through the {end_time}"
             for pe in self.precip[rel_time:sky_cond.end]:
                 if pe:
                     time_modifier = ""
@@ -333,9 +349,9 @@ class SummarizedData(object):
         return {
             "high": self.high.dict() if self.high else None,
             "low": self.low.dict() if self.low else None,
-            "temps": [e.dict() if e else None for e in self.temps],
-            "winds": [e.dict() if e else None for e in self.winds],
-            "cloud_cover": [e.dict() if e else None for e in self.cloud_cover],
-            "precip": [e.dict() if e else None for e in self.precip],
+            "temps": [e.dict() if e is not None else None for e in self.temps],
+            "winds": [e.dict() if e is not None else None for e in self.winds],
+            "cloud_cover": [e.dict() if e is not None else None for e in self.cloud_cover],
+            "precip": [e.dict() if e is not None else None for e in self.precip],
             "text": self.text_summary(),
         }

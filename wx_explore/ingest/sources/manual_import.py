@@ -7,9 +7,12 @@ from wx_explore.ingest.grib import get_grib_ranges, ingest_grib_file
 from wx_explore.common.models import Source
 
 
-logging.basicConfig(level=logging.INFO,
+logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',
                     datefmt="%Y-%m-%d %H:%M:%S")
+logging.getLogger('boto3').setLevel(logging.INFO)
+logging.getLogger('botocore').setLevel(logging.INFO)
+logging.getLogger('nose').setLevel(logging.INFO)
 
 if len(sys.argv) < 3:
     print(f"Usage: {sys.argv[0]} source_short_name files...", file=sys.stderr)

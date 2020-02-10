@@ -1,3 +1,5 @@
+from collections.abc import Iterable
+from typing import Iterable as IterableT, Tuple, Any
 import collections
 import datetime
 import functools
@@ -109,6 +111,10 @@ class ContinuousTimeList(list):
     def _idx_for_dt(self, dt: datetime.datetime) -> int:
         return int((dt - self.start).total_seconds() // self.step.total_seconds())
 
+    def enumerate(self, start, end) -> IterableT[Tuple[datetime.datetime, Any]]:
+        for i in range(self._idx_for_dt(start), self._idx_for_dt(end)):
+            yield (start + self.step * i), self[i]
+
     def __getitem__(self, key):
         if isinstance(key, int):
             return super().__getitem__(key)
@@ -133,6 +139,12 @@ class ContinuousTimeList(list):
                 key = slice(self._idx_for_dt(key.start), key.stop, key.step)
             if isinstance(key.stop, datetime.datetime):
                 key = slice(key.start, self._idx_for_dt(key.stop), key.step)
+            # Allow for doing things like l[start:end] = event
+            if not isinstance(val, Iterable):
+                for i in range(*key.indices(len(self))):
+                    super().__setitem__(i, val)
+                return
+
             return super().__setitem__(key, val)
         else:
             TypeError("index must be int or datetime")
