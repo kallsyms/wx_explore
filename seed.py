@@ -5,8 +5,8 @@ from wx_explore.common.models import (
     Location,
 )
 
+from wx_explore.common import metrics
 from wx_explore.common.db_utils import get_or_create
-from wx_explore.common.metrics import ALL_METRICS
 from wx_explore.web.core import db
 
 
@@ -149,12 +149,21 @@ metric_meta = {
 }
 
 for src in sources:
-    for metric in ALL_METRICS:
+    for metric in metrics.ALL_METRICS:
         get_or_create(SourceField(
             source_id=src.id,
             metric_id=metric.id,
             **metric_meta[metric.name],
         ))
+
+# customization
+nam_cloud_cover = SourceField.query.filter(
+    SourceField.source.has(short_name='nam'),
+    SourceField.metric == metrics.cloud_cover,
+).first()
+nam_cloud_cover.selectors = {'shortName': 'tcc'}
+
+db.session.commit()
 
 
 ###
