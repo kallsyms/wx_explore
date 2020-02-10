@@ -1,5 +1,6 @@
 from scipy.spatial import cKDTree
 from typing import List, Dict, Tuple
+import binascii
 import datetime
 import logging
 import numpy
@@ -32,19 +33,22 @@ def get_or_create_projection(msg):
     if lons.max() > 180:
         lons = numpy.vectorize(lambda n: n if 0 <= n < 180 else n-360)(lons)
 
+    ll_hash = binascii.crc32(numpy.array([lats, lons]).tobytes())
+
     projection = Projection.query.filter_by(
         params=msg.projparams,
-        lats=lats.tolist(),
-        lons=lons.tolist(),
+        ll_hash=ll_hash,
     ).first()
 
     if projection is None:
+        logger.info("Creating new projection with params %s", msg.projparams)
         tree = cKDTree(numpy.stack([lons.ravel(), lats.ravel()], axis=-1))
 
         projection = Projection(
             params=msg.projparams,
             n_x=msg.values.shape[1],
             n_y=msg.values.shape[0],
+            ll_hash=ll_hash,
             lats=lats.tolist(),
             lons=lons.tolist(),
             tree=pickle.dumps(tree),
