@@ -33,7 +33,11 @@ def get_grib_ranges(idxs, source_fields):
 
         offset = int(offset)
 
-        if last is not None:
+        # NAM apparently has index fields like
+        # 624.1:698199214:d=2020020918:UGRD:10 m above ground:5 hour fcst:
+        # 624.2:698199214:d=2020020918:VGRD:10 m above ground:5 hour fcst:
+        #  so offset != last is needed to make sure we don't try and download anything with length 0
+        if last is not None and offset != last:
             offsets.append((last, offset-last))
             last = None
 
