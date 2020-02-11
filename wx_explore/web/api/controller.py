@@ -206,9 +206,10 @@ def summarize():
     snow_sourcefields = SourceField.query.filter(SourceField.metric == metrics.snowing, SourceField.projection_id != None).all()
     wind_sourcefields = SourceField.query.filter(SourceField.metric_id.in_([metrics.wind_speed.id, metrics.wind_direction.id, metrics.gust_speed.id]), SourceField.projection_id != None).all()
     cloud_cover_sourcefields = SourceField.query.filter(SourceField.metric == metrics.cloud_cover, SourceField.projection_id != None).all()
+    reflectivity_sourcefields = SourceField.query.filter(SourceField.metric == metrics.composite_reflectivity, SourceField.projection_id != None).all()
 
     data_points = load_data_points((lat, lon), start, start + timedelta(days=days),
-                                   temp_sourcefields + rain_sourcefields + snow_sourcefields + wind_sourcefields + cloud_cover_sourcefields)
+                                   temp_sourcefields + rain_sourcefields + snow_sourcefields + wind_sourcefields + cloud_cover_sourcefields + reflectivity_sourcefields)
     combined_data_points = combine_models(data_points)
 
     time_ranges = [(start, start.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1))]

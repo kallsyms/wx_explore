@@ -167,15 +167,15 @@ class CloudCoverEvent(TimeRangeEvent):
         return self.cover != 'clear'
 
     def dict(self):
-        return {**super().dict(), **{
+        return {
             "cover": self.cover,
-        }}
+        }
 
 
 class PrecipEvent(TimeRangeEvent):
     # dbZ
     CLASSIFICATIONS = RangeDict({
-        range(0, 15): 'clear',
+        range(-100, 15): '',
         range(15, 30): 'light',
         range(30, 40): 'moderate',
         range(40, 55): 'heavy',
@@ -191,13 +191,13 @@ class PrecipEvent(TimeRangeEvent):
         self.intensity = intensity
 
     def __bool__(self) -> bool:
-        return self.intensity != 'clear'
+        return self.intensity != ''
 
     def dict(self):
-        return {**super().dict(), **{
+        return {
             "type": self.ptype,
             "intensity": self.intensity,
-        }}
+        }
 
 
 class SummarizedData(object):
@@ -278,24 +278,27 @@ class SummarizedData(object):
             start = grp[0].valid_time
             end = grp[-1].valid_time
             e = CloudCoverEvent(start, end, cover)
+            print(start, end, cover)
             self.cloud_cover[e.start:e.end] = e
 
+        raining = list(filter(lambda d: d.median() == 1, self.points_for_metric(metrics.raining)))
         for intensity, grp in itertools.groupby(
                 [(time, rain, refl) for time, (rain, refl) in group_by_time([
-                    self.points_for_metric(metrics.raining),
+                    raining,
                     self.points_for_metric(metrics.composite_reflectivity)])],
-                key=lambda time, raining, refl: PrecipEvent.CLASSIFICATIONS[refl.median()]):
+                key=lambda t: PrecipEvent.CLASSIFICATIONS[t[2].median()]):
             grp = list(grp)
             start = grp[0][0]
             end = grp[-1][0]
             e = PrecipEvent(start, end, 'rain', intensity)
             self.precip[e.start:e.end] = e
 
+        snowing = list(filter(lambda d: d.median() == 1, self.points_for_metric(metrics.snowing)))
         for intensity, grp in itertools.groupby(
                 [(time, snow, refl) for time, (snow, refl) in group_by_time([
-                    self.points_for_metric(metrics.snowing),
+                    snowing,
                     self.points_for_metric(metrics.composite_reflectivity)])],
-                key=lambda time, snowing, refl: PrecipEvent.CLASSIFICATIONS[refl.median()]):
+                key=lambda t: PrecipEvent.CLASSIFICATIONS[t[2].median()]):
             grp = list(grp)
             start = grp[0][0]
             end = grp[-1][0]
