@@ -1,6 +1,5 @@
-from typing import Iterator, List, Dict, Set, Tuple
+from typing import Iterator, List, Dict, Tuple
 import datetime
-import functools
 from wx_explore.common.models import Metric, SourceField, DataPointSet
 
 
@@ -18,11 +17,7 @@ def group_by_time(groups: List[List[DataPointSet]]) -> Iterator[Tuple[datetime.d
     for g in groups:
         pt_by_time.append({dp.valid_time: dp for dp in g})
 
-    common_times: Set[datetime.datetime] = functools.reduce(
-        lambda acc, s: acc.intersection(s) if acc is not None else s,
-        (set(d.keys()) for d in pt_by_time),
-        None,
-    )
+    common_times = set(pt_by_time[0].keys()).intersection(*[set(d.keys()) for d in pt_by_time[1:]])
 
     for t in sorted(common_times):
         yield (t, tuple(d[t] for d in pt_by_time))

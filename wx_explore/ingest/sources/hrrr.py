@@ -54,9 +54,16 @@ class HRRR(IngestSource):
 
             msg = u  # or v - this only matters for projection, valid/analysis dates, etc.
 
+            valid_date = msg.validDate
+            if msg.stepType == 'avg':
+                # avgs are (always?) from lengthOfTimeRange minutes before the instantaneous
+                # dates to the instantaneous dates, so add that back on so the timestamps
+                # match up to other instantaneous fields
+                valid_date += timedelta(minutes=msg.lengthOfTimeRange)
+
             to_insert.update({
-                (speed_sf.id, msg.validDate, msg.analDate): [speed],
-                (direction_sf.id, msg.validDate, msg.analDate): [direction],
+                (speed_sf.id, valid_date, msg.analDate): [speed],
+                (direction_sf.id, valid_date, msg.analDate): [direction],
             })
 
             if projection is None:
