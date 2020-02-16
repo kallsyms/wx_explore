@@ -4,6 +4,7 @@ import collections
 import datetime
 import functools
 import logging
+import math
 import requests
 import time
 
@@ -100,7 +101,7 @@ class ContinuousTimeList(list):
         self.end = end
         self.step = step
 
-        list_len = int((end-start)/step)
+        list_len = math.ceil((end-start)/step)
         if vals is None:
             vals = [None] * list_len
         if len(vals) != list_len:

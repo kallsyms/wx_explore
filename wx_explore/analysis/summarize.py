@@ -1,6 +1,7 @@
 from typing import List, Callable, Iterable, Dict, Iterator, Tuple, Optional, Mapping
 
 import datetime
+import math
 import numpy
 import itertools
 
@@ -278,7 +279,6 @@ class SummarizedData(object):
             start = grp[0].valid_time
             end = grp[-1].valid_time
             e = CloudCoverEvent(start, end, cover)
-            print(start, end, cover)
             self.cloud_cover[e.start:e.end] = e
 
         raining = list(filter(lambda d: d.median() == 1, self.points_for_metric(metrics.raining)))
@@ -310,7 +310,7 @@ class SummarizedData(object):
                     self.precip[t] = e
 
     def time_buckets(self) -> Iterable[Tuple[datetime.datetime, datetime.datetime]]:
-        for i in range(int((self.end - self.start).total_seconds() // self.resolution.total_seconds())):
+        for i in range(math.ceil((self.end - self.start).total_seconds() / self.resolution.total_seconds())):
             yield (
                 self.start + (self.resolution * i),
                 self.start + (self.resolution * (i+1)),

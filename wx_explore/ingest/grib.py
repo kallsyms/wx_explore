@@ -1,4 +1,5 @@
 import collections
+import datetime
 import logging
 import numpy
 import pygrib
@@ -103,8 +104,11 @@ def ingest_grib_file(file_path, source):
                 field.projection_id = projection.id
                 db.session.commit()
 
-            # XXX: Check if existing msg is same except instantaneous vs. avg
-            data_by_projection[field.projection.id][(field.id, msg.validDate, msg.analDate)].append(msg.values)
+            valid_date = msg.validDate
+            if msg.stepType == 'avg':
+                valid_date += datetime.timedelta(minutes=msg.lengthOfTimeRange)
+
+            data_by_projection[field.projection.id][(field.id, valid_date, msg.analDate)].append(msg.values)
 
     logger.info("Saving denormalized location/time data for all messages")
 

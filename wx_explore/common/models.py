@@ -220,6 +220,9 @@ class DataPointSet(object):
         self.derived = derived
         self.synthesized = synthesized
 
+    def __repr__(self):
+        return f"<DataPointSet metric_id={self.metric_id} valid_time={self.valid_time} source_field_id={self.source_field_id} derived={self.derived} synthesized={self.synthesized}>"
+
     def min(self) -> float:
         return min(self.values)
 
