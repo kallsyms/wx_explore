@@ -76,6 +76,30 @@ def reduce_grib(grib_url, idx_url, source_fields, out_f):
     out_f.flush()
 
 
+def get_end_valid_time(msg):
+    """
+    Gets the valid time for msg, using the end time if the message is an avg
+    over a time range
+    """
+    valid_date = msg.validDate
+    if (not msg.valid_key('stepType')) or (msg.stepType == 'instant'):
+        return valid_date
+
+    if not msg.valid_key('lengthOfTimeRange'):
+        return valid_date
+
+    if msg.fcstimeunits == 'secs':
+        return valid_date + datetime.timedelta(seconds=msg.lengthOfTimeRange)
+    elif msg.fcstimeunits == 'mins':
+        return valid_date + datetime.timedelta(minutes=msg.lengthOfTimeRange)
+    elif msg.fcstimeunits == 'hrs':
+        return valid_date + datetime.timedelta(hours=msg.lengthOfTimeRange)
+    elif msg.fcstimeunits == 'days':
+        return valid_date + datetime.timedelta(days=msg.lengthOfTimeRange)
+
+    return valid_date
+
+
 def ingest_grib_file(file_path, source):
     """
     Ingests a given GRIB file into the backend.
@@ -104,10 +128,7 @@ def ingest_grib_file(file_path, source):
                 field.projection_id = projection.id
                 db.session.commit()
 
-            valid_date = msg.validDate
-            if msg.stepType == 'avg':
-                valid_date += datetime.timedelta(minutes=msg.lengthOfTimeRange)
-
+            valid_date = get_end_valid_time(msg)
             data_by_projection[field.projection.id][(field.id, valid_date, msg.analDate)].append(msg.values)
 
     logger.info("Saving denormalized location/time data for all messages")

@@ -1,7 +1,6 @@
 #!/usr/bin/env python3
 from datetime import datetime, timedelta
 from typing import Optional
-import collections
 import logging
 
 from wx_explore.analysis.transformations import cartesian_to_polar
@@ -12,6 +11,7 @@ from wx_explore.common.models import (
 )
 from wx_explore.common.utils import datetime2unix
 from wx_explore.ingest.common import get_queue, get_or_create_projection, create_files
+from wx_explore.ingest.grib import get_end_valid_time
 from wx_explore.ingest.sources.source import IngestSource
 from wx_explore.web.core import db
 
@@ -54,12 +54,7 @@ class HRRR(IngestSource):
 
             msg = u  # or v - this only matters for projection, valid/analysis dates, etc.
 
-            valid_date = msg.validDate
-            if msg.stepType == 'avg':
-                # avgs are (always?) from lengthOfTimeRange minutes before the instantaneous
-                # dates to the instantaneous dates, so add that back on so the timestamps
-                # match up to other instantaneous fields
-                valid_date += timedelta(minutes=msg.lengthOfTimeRange)
+            valid_date = get_end_valid_time(msg)
 
             to_insert.update({
                 (speed_sf.id, valid_date, msg.analDate): [speed],
