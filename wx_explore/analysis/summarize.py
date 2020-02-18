@@ -1,4 +1,4 @@
-from typing import List, Callable, Iterable, Dict, Iterator, Tuple, Optional, Mapping
+from typing import List, Iterable, Dict, Tuple, Optional, Mapping, Any
 
 import datetime
 import math
@@ -309,6 +309,8 @@ class SummarizedData(object):
                 else:
                     self.precip[t] = e
 
+        # TODO: ice, freezing rain
+
     def time_buckets(self) -> Iterable[Tuple[datetime.datetime, datetime.datetime]]:
         for i in range(math.ceil((self.end - self.start).total_seconds() / self.resolution.total_seconds())):
             yield (
@@ -316,39 +318,102 @@ class SummarizedData(object):
                 self.start + (self.resolution * (i+1)),
             )
 
-    def text_summary(self, rel_time=0):
-        summary = ""
+    def summarize(self, rel_time=0) -> List[Dict[str, Any]]:
+        components = []
 
         pe = self.precip[rel_time]
         if pe:
-            summary += f"{pe.ptype} through the {time_of_day(pe.end)}"
+            components.append({
+                "type": "precip",
+                "metrics": [m.id for m in (metrics.raining, metrics.snowing)],
+                "text": pe.ptype,
+            })
+            components.append({
+                "type": "text",
+                "text": f"through the {time_of_day(pe.end)}",
+            })
             for we in self.winds[pe.start:]:
                 if we is not None and we.avg_speed > 15:  # XXX: arbitrary
-                    summary += f", with {we.avg_speed_text} winds"  # units
+                    components.append({
+                        "type": "text",
+                        "text": ", with",
+                    })
+                    components.append({
+                        "type": "wind_speed",
+                        "metrics": [metrics.wind_speed.id],
+                        "text": we.avg_speed_text,
+                    })
+                    components.append({
+                        "type": "text",
+                        "text": "winds",
+                    })
                     if we.gust_speed > we.avg_speed + 10:  # XXX: also arbitrary
-                        summary += f" gusting to {we.gust_speed}"
+                        components.append({
+                            "type": "text",
+                            "text": "gusting to",
+                        })
+                        components.append({
+                            "type": "gust_speed",
+                            "metrics": [metrics.gust_speed.id],
+                            "text": we.gust_speed,
+                        })
                     break
             pe2 = self.precip[pe.end]
             if pe2:
-                summary += f", changing into {pe2.ptype} around {pe2.start.hour}"
+                components.append({
+                    "type": "text",
+                    "text": ", changing into",
+                })
+                components.append({
+                    "type": "precip",
+                    "metrics": [m.id for m in (metrics.raining, metrics.snowing)],
+                    "text": pe2.ptype,
+                })
+                components.append({
+                    "type": "text",
+                    "text": f"around {pe2.start.hour}",
+                })
         else:
             sky_cond = self.cloud_cover[rel_time]
             end_time = time_of_day(sky_cond.end)
             if sky_cond.end.hour > 17:
                 end_time = "day"
-            summary += f"{sky_cond.cover} through the {end_time}"
+            components.append({
+                "type": "cloud_cover",
+                "metrics": [metrics.cloud_cover.id],
+                "text": sky_cond.cover,
+            })
+            components.append({
+                "type": "text",
+                "text": f"through the {end_time}",
+            })
             for pe in self.precip[rel_time:sky_cond.end]:
                 if pe:
                     time_modifier = ""
                     if pe.end - pe.start <= datetime.timedelta(hours=2):
                         time_modifier = "brief "
-                    summary += f", with {time_modifier}{pe.ptype} starting around {pe.start.hour}"
+                    components.append({
+                        "type": "text",
+                        "text": f", with {time_modifier}",
+                    })
+                    components.append({
+                        "type": "precip",
+                        "metrics": [m.id for m in (metrics.raining, metrics.snowing)],
+                        "text": pe.ptype,
+                    })
+                    components.append({
+                        "type": "text",
+                        "text": f"starting around {pe.start.hour}",
+                    })
                     break
             # TODO: sky cond + wind
 
-        return summary
+        return components
 
     def dict(self):
+        summary = self.summarize()
+        text_summary = ' '.join(c['text'] for c in summary)
+
         return {
             "high": self.high.dict() if self.high else None,
             "low": self.low.dict() if self.low else None,
@@ -356,5 +421,8 @@ class SummarizedData(object):
             "winds": [e.dict() if e is not None else None for e in self.winds],
             "cloud_cover": [e.dict() if e is not None else None for e in self.cloud_cover],
             "precip": [e.dict() if e is not None else None for e in self.precip],
-            "text": self.text_summary(),
+            "summary": {
+                "components": summary,
+                "full_text": text_summary,
+            },
         }

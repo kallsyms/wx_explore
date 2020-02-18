@@ -213,7 +213,7 @@ def summarize():
     combined_data_points = combine_models(data_points)
 
     time_ranges = [(start, start.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1))]
-    for d in range(days):
+    for d in range(1, days):
         last_end = time_ranges[-1][1]
         time_ranges.append((last_end, last_end + timedelta(days=1)))
 
