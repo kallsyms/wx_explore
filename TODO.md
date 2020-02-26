@@ -1,19 +1,13 @@
 # Quick list
-* derived data (wind speed, dir from u,v)
 * ensemble ingest
-* precip summarization
-    * classification
-    * ingest of radar reflectivity for heaviness
 * confidence on summarized metrics
+* debouncer
+    * tag events as scattered or something if debouncing kicks in
+
+* wind direction grib field is "from which blowing" - derived is where to?
 
 * add timezone to location table
-* add location alias table that is also searched but doesn't have distinct coordinates (just aliases to another location with coords)
-* add wind (WIND, WDIR), snow depth (SNOD), total cloud cover (TCDC), pressure (PRES)
-    * https://www.nco.ncep.noaa.gov/pmb/docs/on388/table2.html
-    * look for precip rates?
-* move grib info to metric table (?)
 * batch worker imports by source so DB upserts are more efficient
-* Move `db` instance out of `web`
 
 * frontend
     * unit conversions

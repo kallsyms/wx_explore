@@ -1,7 +1,6 @@
-from datetime import datetime, timedelta
 import collections
+import concurrent.futures
 import hashlib
-import io
 import logging
 import numpy
 import tempfile
@@ -16,24 +15,31 @@ from wx_explore.web.core import db
 logger = logging.getLogger(__name__)
 
 
-def merge(max_size=2048):
+def create_merged_stripe(files, used_idxs, s3_file_name, n_x, y):
+    s3 = get_s3_bucket()
+
+    # TODO: remove bands from content which don't map to anything anymore
+    with tempfile.TemporaryFile() as merged:
+        contents = []
+        for f in files:
+            datas = numpy.frombuffer(
+                s3_request(f"{y}/{f.file_name}").content,
+                dtype=numpy.float32,
+            ).reshape((n_x, f.loc_size//4))
+
+            contents.append(datas[:, used_idxs[f]])
+
+        merged.write(numpy.concatenate(contents, axis=1).tobytes())
+
+        merged.seek(0)
+        s3.upload_fileobj(merged, f"{y}/{s3_file_name}")
+
+
+def merge():
     """
     Merge all small files into larger files to reduce the number of S3 requests each query needs to do.
     """
-    # max_size=2048 is somewhat arbitrary.
-    # This limit prevents all data points from being merged into a single large file which would
-    #  1) never get cleaned up/removed
-    #  2) be super inefficient to add to since it would be copying around 10s to 100s of GB
-
-    # min_age prevents brand new files that may still be uploading from being merged.
-    # This also has the side-effect of batching together small files that then merge into larger files
-    # that then merge into larger files, etc. since a newly merged file wont be eligible in the next
-    # merge cycle.
-    min_age = datetime.utcnow() - timedelta(hours=1)
-
     small_files = FileMeta.query.filter(
-        FileMeta.loc_size < (max_size - 4),
-        FileMeta.ctime < min_age,
         FileMeta.file_name.in_(FileBandMeta.query.with_entities(FileBandMeta.file_name)),
     ).all()
 
@@ -41,72 +47,63 @@ def merge(max_size=2048):
     for f in small_files:
         proj_files[f.projection].append(f)
 
-    s3 = get_s3_bucket()
-
-    for proj, all_files in proj_files.items():
-        # group all_files into a list of lists (of files),
-        # each list of files not having a total loc_size > max_size
-        merge_groups = [[]]
-        for f in all_files:
-            if sum(fl.loc_size for fl in merge_groups[-1]) + f.loc_size > max_size:
-                merge_groups.append([])
-            merge_groups[-1].append(f)
-
+    for proj, files in proj_files.items():
         n_y, n_x = proj.shape()
 
-        for files in merge_groups:
-            if len(files) < 2:
-                continue
+        if len(files) < 2:
+            continue
 
-            logger.info("Merging %s", ','.join(f.file_name for f in files))
+        logger.info("Merging %s", ','.join(f.file_name for f in files))
 
-            merged_loc_size = sum(f.loc_size for f in files)
-            s3_file_name = hashlib.md5(('-'.join(f.file_name for f in files)).encode('utf-8')).hexdigest()
-            s3_file_name = s3_file_name[:2] + '/' + s3_file_name
+        merged_loc_size = sum(f.loc_size for f in files)
+        s3_file_name = hashlib.md5(('-'.join(f.file_name for f in files)).encode('utf-8')).hexdigest()
 
-            streams = {}
-            for f in files:
-                r = s3_request(f.file_name, stream=True).raw
-                r.auto_close = False
-                # Buffer up to 20 rows in memory, about 80MB worst case
-                # (loc_size=2048 * n_x~=2000 * 20) ~= 82MB
-                streams[f] = io.BufferedReader(r, f.loc_size * n_x * 10)
+        merged_meta = FileMeta(
+            file_name=s3_file_name,
+            projection_id=proj.id,
+            loc_size=merged_loc_size,
+        )
+        db.session.add(merged_meta)
 
-            with tempfile.TemporaryFile(buffering=8*1024*1024) as merged:
-                for y in range(n_y):
-                    contents = []
-                    for f in files:
-                        contents.append(
-                            numpy.frombuffer(
-                                streams[f].read(f.loc_size * n_x),
-                                dtype=numpy.float32,
-                            ).reshape((n_x, f.loc_size//4))
-                        )
+        # This next part is all about figuring out what items are still used in
+        # each file so that the merge process can effectively garbage collect
+        # unused data.
 
-                    merged.write(numpy.concatenate(contents, axis=1).tobytes())
+        # Dict of FileMeta -> list of float32 item indexes still used by some band
+        used_idxs = collections.defaultdict(list)
 
-                merged.seek(0)
-                s3.upload_fileobj(merged, s3_file_name)
-                logger.info("Created merged S3 file %s", s3_file_name)
+        offset = 0
+        # Dict of FileBandMeta -> offset
+        new_offsets = {}
 
-            merged_meta = FileMeta(
-                file_name=s3_file_name,
-                projection_id=proj.id,
-                loc_size=merged_loc_size,
-            )
-            db.session.add(merged_meta)
-            db.session.commit()
+        for f in files:
+            for band in f.bands:
+                new_offsets[band] = offset
+                offset += 4 * band.vals_per_loc
 
-            offset = 0
+                start_idx = band.offset // 4
+                used_idxs[f].extend(range(start_idx, start_idx + band.vals_per_loc))
 
-            for f in files:
-                for band in f.bands:
-                    band.file_name = merged_meta.file_name
-                    band.offset += offset
-                offset += f.loc_size
+        # max workers = 10 to limit mem utilization
+        # Approximate worst case, we'll have
+        # (5 sources * 70 runs * 2000 units wide * 20 metrics/unit * 4 bytes per metric) per row
+        # or ~50MB/row in memory.
+        # 10 rows keeps us well under 1GB which is what this should be provisioned for.
+        with concurrent.futures.ThreadPoolExecutor(10) as executor:
+            concurrent.futures.wait([
+                executor.submit(create_merged_stripe, files, used_idxs, s3_file_name, n_x, y)
+                for y in range(n_y)
+            ])
 
-            db.session.commit()
-            logger.info("Updated file band meta")
+        logger.info("Created merged S3 file group %s", s3_file_name)
+
+        for band, offset in new_offsets.items():
+            band.offset = offset
+            band.file_name = merged_meta.file_name
+
+        db.session.commit()
+
+        logger.info("Updated file band meta")
 
 
 if __name__ == "__main__":

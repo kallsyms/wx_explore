@@ -1,6 +1,7 @@
 from scipy.spatial import cKDTree
 from typing import List, Dict, Tuple
 import binascii
+import concurrent.futures
 import datetime
 import logging
 import numpy
@@ -59,12 +60,19 @@ def get_or_create_projection(msg):
     return projection
 
 
+def _upload(s3_file_name, y, d):
+    s3 = get_s3_bucket()
+    s3.put_object(
+        Key=f"{y}/{s3_file_name}",
+        Body=d.tobytes(),
+    )
+
+
 def create_files(proj_id: int, fields: Dict[Tuple[int, datetime.datetime, datetime.datetime], List[numpy.array]]):
     metas = []
     vals = []
 
     s3_file_name = ''.join(random.choices('0123456789abcdef', k=32))
-    s3_file_name = s3_file_name[:2] + '/' + s3_file_name
 
     fm = FileMeta(
         file_name=s3_file_name,
@@ -88,13 +96,14 @@ def create_files(proj_id: int, fields: Dict[Tuple[int, datetime.datetime, dateti
             vals.append(msg.astype(numpy.float32))
             offset += 4  # sizeof(float32)
 
+    combined = numpy.stack(vals, axis=-1)
     fm.loc_size = offset
 
-    s3 = get_s3_bucket()
-    s3.put_object(
-        Key=s3_file_name,
-        Body=numpy.stack(vals, axis=-1).tobytes(),
-    )
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        concurrent.futures.wait([
+            executor.submit(_upload, s3_file_name, y, vals)
+            for y, vals in enumerate(combined)
+        ])
 
     db.session.add_all(metas)
     db.session.commit()

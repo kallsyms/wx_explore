@@ -34,7 +34,6 @@ services:
             - INGEST_S3_REGION=us-east-1
             - INGEST_S3_BUCKET=wx-denormalized
             - INGEST_S3_ENDPOINT=http://minio:9000
-            - DEBUG=1
         volumes:
             - ./:/opt/wx_explore
         ports:

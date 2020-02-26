@@ -82,13 +82,10 @@ def s3_request(path, **kwargs):
 def load_file_chunk(fm, coords):
     x, y = coords
 
-    n_x = fm.projection.shape()[1]
-    loc_chunks = (y * n_x) + x
+    start = x * fm.loc_size
+    end = (x + 1) * fm.loc_size
 
-    start = loc_chunks * fm.loc_size
-    end = (loc_chunks + 1) * fm.loc_size
-
-    return s3_request(fm.file_name, headers={'Range': f'bytes={start}-{end-1}'}).content
+    return s3_request(f"{y}/{fm.file_name}", headers={'Range': f'bytes={start}-{end-1}'}).content
 
 
 def load_data_points(
