@@ -1,16 +1,20 @@
 import React from 'react';
+import Nav from 'react-bootstrap/Nav';
 import Navbar from 'react-bootstrap/Navbar';
+import Container from 'react-bootstrap/Container';
 import Form from 'react-bootstrap/Form';
 
 import Api from './Api';
 import ForecastView from './ForecastView';
 import LocationSearchField from './LocationSearch';
+import {Imperial, Metric} from './Units'
 
 import './App.css';
 
 export default class App extends React.Component {
   state = {
     location: null,
+    unitConverter: new Imperial(),
   };
 
   setLocation(loc) {
@@ -19,7 +23,6 @@ export default class App extends React.Component {
       return;
     }
 
-    console.log(loc);
     this.setState({
       location: loc,
     });
@@ -43,14 +46,17 @@ export default class App extends React.Component {
   render() {
     return (
       <div className="App">
-        <Navbar className="bg-dark justify-content-between">
-          <Form inline>
-          </Form>
+        <Navbar bg="dark" variant="dark">
+          <Navbar.Brand>Wx Explore</Navbar.Brand>
+          <Nav className="mr-auto"></Nav>
+
           <Form inline>
             <LocationSearchField onChange={(selected) => {this.setLocation(selected[0])}}/>
           </Form>
         </Navbar>
-        <ForecastView location={this.state.location} />
+        <Container style={{marginTop: "1em"}}>
+          <ForecastView location={this.state.location} converter={this.state.unitConverter}/>
+        </Container>
       </div>
     );
   }

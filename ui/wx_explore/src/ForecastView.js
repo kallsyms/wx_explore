@@ -1,6 +1,9 @@
 import React from 'react';
 import moment from 'moment';
 import {Line as LineChart} from 'react-chartjs-2';
+import Row from 'react-bootstrap/Row';
+import Col from 'react-bootstrap/Col';
+import Spinner from 'react-bootstrap/Spinner';
 
 import Api from './Api';
 
@@ -10,24 +13,46 @@ const lineColors = {
   'nam':  '0,0,255',
 };
 
+const metricsToDisplay = [
+  "1", // temperature
+  "3", // rain
+  "6", // snow
+  "12", // wind
+  "15", // cloud cover
+];
+
+function capitalize(s) {
+  return s[0].toUpperCase() + s.substring(1)
+}
+
 export default class ForecastView extends React.Component {
   state = {
-    wx: null,
+    metrics: null,
     sources: null,
     source_fields: null,
-    metrics: null,
+    summary: null,
+    wx: null,
   };
 
   getWx() {
     let t = Math.round((new Date()).getTime() / 1000);
+
     Api.get("/wx", {
       params: {
         lat: this.props.location.lat,
         lon: this.props.location.lon,
         start: t,
-        end: t + (7 * 24 * 60 * 60),
+        end: t + (3 * 24 * 60 * 60), // 3 days out
       },
     }).then(({data}) => this.setState({wx: data}));
+
+    Api.get("/wx/summarize", {
+      params: {
+        lat: this.props.location.lat,
+        lon: this.props.location.lon,
+        days: 1,
+      },
+    }).then(({data}) => this.setState({summary: data}));
   }
 
   componentDidMount() {
@@ -69,6 +94,7 @@ export default class ForecastView extends React.Component {
       return;
     }
 
+    this.setState({wx: null, summary: null});
     this.getWx();
   }
 
@@ -99,6 +125,10 @@ export default class ForecastView extends React.Component {
 
     let datasets = {};
     for (const metric_id in metrics) {
+      if (!metricsToDisplay.includes(metric_id)) {
+        continue;
+      }
+
       datasets[metric_id] = [];
 
       for (const source_id in metrics[metric_id]) {
@@ -138,9 +168,73 @@ export default class ForecastView extends React.Component {
     return datasets;
   }
 
+  coreMetricsBox(day) {
+    const summary = this.state.summary[day];
+
+    let cloudCoverIcon = '';
+    switch (summary.cloud_cover[0].cover) {
+      case 'clear':
+        cloudCoverIcon = 'wi-day-sunny';
+        break;
+      case 'mostly clear':
+        cloudCoverIcon = 'wi-day-sunny';
+        break;
+      case 'partly cloudy':
+        cloudCoverIcon = 'wi-day-cloudy-high';
+        break;
+      case 'mostly cloudy':
+        cloudCoverIcon = 'wi-cloud';
+        break;
+      case 'cloudy':
+        cloudCoverIcon = 'wi-cloudy';
+        break;
+    }
+
+    return (
+      <Row className="justify-content-md-center">
+        <Col xs={3}>
+          <i class={"wi " + cloudCoverIcon}></i>
+        </Col>
+        <Col xs={3}>
+          <h4>{this.props.converter.convert(summary.temps[0].temperature, 'K')} {capitalize(summary.cloud_cover[0].cover)}</h4>
+          <p>High: {this.props.converter.convert(summary.high.temperature, 'K')}</p>
+          <p>Low: {this.props.converter.convert(summary.low.temperature, 'K')}</p>
+        </Col>
+      </Row>
+    );
+  }
+
+  summarize(day) {
+    let components = [];
+
+    for (const [index, component] of this.state.summary[day].summary.components.entries()) {
+      let text = '';
+      if (index === 0) {
+        text = capitalize(component.text);
+      } else {
+        text = component.text;
+      }
+      text += ' ';
+
+      if (component.type === 'text') {
+        components.push(<span key={index}>{text}</span>);
+      } else {
+        components.push(<span key={index}>{text}</span>);
+      }
+    }
+
+    return (
+      <span>{components}</span>
+    );
+  }
+
   render() {
-    if (this.state.wx == null || this.state.sources == null || this.state.source_fields == null || this.state.metrics == null) {
-      return null;
+    if (this.state.wx == null || this.state.summary == null || this.state.sources == null || this.state.source_fields == null || this.state.metrics == null) {
+      return (
+        <Spinner animation="border" role="status">
+          <span className="sr-only">Loading...</span>
+        </Spinner>
+      );
     }
 
     let datasets = this.chartjsData();
@@ -173,13 +267,30 @@ export default class ForecastView extends React.Component {
           text: metric.name,
         },
       };
-      charts.push(<LineChart key={metric.name} data={data} options={opts}/>);
+      charts.push(
+        <Row className="justify-content-md-center">
+          <Col>
+            <LineChart key={metric.name} data={data} options={opts}/>
+          </Col>
+        </Row>
+      );
     };
 
     return (
       <div>
-      <span>{this.props.location.name}</span>
-      {charts}
+        <Row className="justify-content-md-center">
+          <Col md="auto">
+            <h2>{this.props.location.name}</h2>
+          </Col>
+        </Row>
+        <Row className="justify-content-md-center">
+          <Col md="auto">
+            <p style={{fontSize: "1.5em"}}>{this.summarize(0)}</p>
+          </Col>
+        </Row>
+        {this.coreMetricsBox(0)}
+        <hr/>
+        {charts}
       </div>
     );
   }
