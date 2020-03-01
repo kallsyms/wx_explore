@@ -54,7 +54,7 @@ class BotoSessionAllocator(object):
 session_allocator = BotoSessionAllocator()
 
 
-def get_s3_bucket(session=boto3):
+def _get_s3_bucket(session):
     return session.resource(
         's3',
         aws_access_key_id=Config.INGEST_S3_ACCESS_KEY,
@@ -62,6 +62,14 @@ def get_s3_bucket(session=boto3):
         region_name=Config.INGEST_S3_REGION,
         endpoint_url=Config.INGEST_S3_ENDPOINT,
     ).Bucket(Config.INGEST_S3_BUCKET)
+
+
+def get_s3_bucket(session=None):
+    if session is None:
+        with session_allocator.get_session() as s:
+            return _get_s3_bucket(s)
+    else:
+        return _get_s3_bucket(session)
 
 
 # Most of the below is copied from https://docs.aws.amazon.com/general/latest/gr/sigv4-signed-request-examples.html

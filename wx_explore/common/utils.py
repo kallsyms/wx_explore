@@ -1,4 +1,5 @@
 from collections.abc import Iterable
+from itertools import islice
 from typing import Iterable as IterableT, Tuple, Any
 import collections
 import datetime
@@ -48,6 +49,11 @@ def get_url(url, headers=None, retries=3):
 def url_exists(url):
     r = requests.head(url)
     return 200 <= r.status_code < 300
+
+
+def chunk(it, size):
+    it = iter(it)
+    return iter(lambda: tuple(islice(it, size)), ())
 
 
 class memoize(object):
