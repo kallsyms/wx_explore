@@ -140,11 +140,10 @@ metadata:
   name: wx-explore-worker
 spec:
   schedule: "*/5 * * * *"
-  concurrencyPolicy: Forbid
   startingDeadlineSeconds: 300
   jobTemplate:
     spec:
-      activeDeadlineSeconds: 600
+      activeDeadlineSeconds: 3600
       template:
         spec:
           restartPolicy: Never
