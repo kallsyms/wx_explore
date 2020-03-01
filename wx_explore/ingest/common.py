@@ -15,7 +15,7 @@ from wx_explore.common.models import (
     FileBandMeta,
 )
 from wx_explore.common.queue import pq
-from wx_explore.common.storage import get_s3_bucket
+from wx_explore.common.storage import session_allocator, get_s3_bucket
 from wx_explore.ingest.sources.source import IngestSource
 from wx_explore.web.core import db
 
@@ -61,11 +61,12 @@ def get_or_create_projection(msg):
 
 
 def _upload(s3_file_name, y, d):
-    s3 = get_s3_bucket()
-    s3.put_object(
-        Key=f"{y}/{s3_file_name}",
-        Body=d.tobytes(),
-    )
+    with session_allocator.get_session() as s:
+        s3 = get_s3_bucket(s)
+        s3.put_object(
+            Key=f"{y}/{s3_file_name}",
+            Body=d.tobytes(),
+        )
 
 
 def create_files(proj_id: int, fields: Dict[Tuple[int, datetime.datetime, datetime.datetime], List[numpy.array]]):
@@ -99,7 +100,8 @@ def create_files(proj_id: int, fields: Dict[Tuple[int, datetime.datetime, dateti
     combined = numpy.stack(vals, axis=-1)
     fm.loc_size = offset
 
-    with concurrent.futures.ThreadPoolExecutor() as executor:
+    with concurrent.futures.ThreadPoolExecutor(32) as executor:
+        session_allocator.alloc_sessions(32)
         concurrent.futures.wait([
             executor.submit(_upload, s3_file_name, y, vals)
             for y, vals in enumerate(combined)

@@ -71,7 +71,7 @@ kind: CronJob
 metadata:
   name: wx-explore-merge
 spec:
-  schedule: "*/10 * * * *"
+  schedule: "*/30 * * * *"
   concurrencyPolicy: Forbid
   jobTemplate:
     spec:

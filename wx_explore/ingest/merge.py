@@ -9,21 +9,18 @@ from wx_explore.common.models import (
     FileMeta,
     FileBandMeta,
 )
-from wx_explore.common.storage import get_s3_bucket, s3_request
+from wx_explore.common.storage import s3_get, session_allocator, get_s3_bucket
 from wx_explore.web.core import db
 
 logger = logging.getLogger(__name__)
 
 
 def create_merged_stripe(files, used_idxs, s3_file_name, n_x, y):
-    s3 = get_s3_bucket()
-
-    # TODO: remove bands from content which don't map to anything anymore
     with tempfile.TemporaryFile() as merged:
         contents = []
         for f in files:
             datas = numpy.frombuffer(
-                s3_request(f"{y}/{f.file_name}").content,
+                s3_get(f"{y}/{f.file_name}").content,
                 dtype=numpy.float32,
             ).reshape((n_x, f.loc_size//4))
 
@@ -32,7 +29,10 @@ def create_merged_stripe(files, used_idxs, s3_file_name, n_x, y):
         merged.write(numpy.concatenate(contents, axis=1).tobytes())
 
         merged.seek(0)
-        s3.upload_fileobj(merged, f"{y}/{s3_file_name}")
+
+        with session_allocator.get_session() as s:
+            s3 = get_s3_bucket(s)
+            s3.upload_fileobj(merged, f"{y}/{s3_file_name}")
 
 
 def merge():
@@ -55,16 +55,6 @@ def merge():
 
         logger.info("Merging %s", ','.join(f.file_name for f in files))
 
-        merged_loc_size = sum(f.loc_size for f in files)
-        s3_file_name = hashlib.md5(('-'.join(f.file_name for f in files)).encode('utf-8')).hexdigest()
-
-        merged_meta = FileMeta(
-            file_name=s3_file_name,
-            projection_id=proj.id,
-            loc_size=merged_loc_size,
-        )
-        db.session.add(merged_meta)
-
         # This next part is all about figuring out what items are still used in
         # each file so that the merge process can effectively garbage collect
         # unused data.
@@ -84,12 +74,22 @@ def merge():
                 start_idx = band.offset // 4
                 used_idxs[f].extend(range(start_idx, start_idx + band.vals_per_loc))
 
+        s3_file_name = hashlib.md5(('-'.join(f.file_name for f in files)).encode('utf-8')).hexdigest()
+
+        merged_meta = FileMeta(
+            file_name=s3_file_name,
+            projection_id=proj.id,
+            loc_size=offset,
+        )
+        db.session.add(merged_meta)
+
         # max workers = 10 to limit mem utilization
         # Approximate worst case, we'll have
         # (5 sources * 70 runs * 2000 units wide * 20 metrics/unit * 4 bytes per metric) per row
         # or ~50MB/row in memory.
         # 10 rows keeps us well under 1GB which is what this should be provisioned for.
         with concurrent.futures.ThreadPoolExecutor(10) as executor:
+            session_allocator.alloc_sessions(10)
             concurrent.futures.wait([
                 executor.submit(create_merged_stripe, files, used_idxs, s3_file_name, n_x, y)
                 for y in range(n_y)

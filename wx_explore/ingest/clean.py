@@ -31,6 +31,7 @@ def clean_old_datas():
 
     for f in files:
         db.session.delete(f)
+
     db.session.commit()
 
 

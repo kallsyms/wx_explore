@@ -18,8 +18,44 @@ from wx_explore.common.models import (
 )
 
 
-def get_s3_bucket():
-    return boto3.resource(
+class BotoSessionWrapper(boto3.session.Session):
+    def __init__(self, allocator, *args, **kwargs):
+        self.allocator = allocator
+        super().__init__(*args, **kwargs)
+
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        self.allocator._put_session(self)
+
+
+class BotoSessionAllocator(object):
+    def __init__(self):
+        self._sess_cache = []
+        self._put_session(BotoSessionWrapper(allocator=self))
+
+    def _put_session(self, s):
+        self._sess_cache.append(s)
+
+    def alloc_sessions(self, n):
+        if len(self._sess_cache) < n:
+            for _ in range(n - len(self._sess_cache)):
+                self._put_session(BotoSessionWrapper(allocator=self))
+
+    def get_session(self):
+        try:
+            return self._sess_cache.pop()
+        except IndexError:
+            self.alloc_sessions(1)
+            return self.get_session()
+
+
+session_allocator = BotoSessionAllocator()
+
+
+def get_s3_bucket(session=boto3):
+    return session.resource(
         's3',
         aws_access_key_id=Config.INGEST_S3_ACCESS_KEY,
         aws_secret_access_key=Config.INGEST_S3_SECRET_KEY,
@@ -42,7 +78,7 @@ def get_signature_key(key, dateStamp, regionName, serviceName):
     return kSigning
 
 
-def s3_request(path, **kwargs):
+def s3_get(path, **kwargs):
     access_key = Config.INGEST_S3_ACCESS_KEY
     secret_key = Config.INGEST_S3_SECRET_KEY
     region = Config.INGEST_S3_REGION
@@ -65,13 +101,13 @@ def s3_request(path, **kwargs):
 
     algorithm = 'AWS4-HMAC-SHA256'
     credential_scope = datestamp + '/' + region + '/' + 's3' + '/' + 'aws4_request'
-    string_to_sign = algorithm + '\n' +  amzdate + '\n' +  credential_scope + '\n' +  hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()
+    string_to_sign = algorithm + '\n' + amzdate + '\n' + credential_scope + '\n' + hashlib.sha256(canonical_request.encode('utf-8')).hexdigest()
 
     signing_key = get_signature_key(secret_key, datestamp, region, 's3')
 
     signature = hmac.new(signing_key, (string_to_sign).encode('utf-8'), hashlib.sha256).hexdigest()
 
-    authorization_header = algorithm + ' ' + 'Credential=' + access_key + '/' + credential_scope + ', ' +  'SignedHeaders=' + signed_headers + ', ' + 'Signature=' + signature
+    authorization_header = algorithm + ' ' + 'Credential=' + access_key + '/' + credential_scope + ', ' + 'SignedHeaders=' + signed_headers + ', ' + 'Signature=' + signature
 
     amz_headers = {'x-amz-date': amzdate, 'Authorization': authorization_header}
     headers = {**kwargs.pop('headers', {}), **amz_headers}
@@ -85,7 +121,7 @@ def load_file_chunk(fm, coords):
     start = x * fm.loc_size
     end = (x + 1) * fm.loc_size
 
-    return s3_request(f"{y}/{fm.file_name}", headers={'Range': f'bytes={start}-{end-1}'}).content
+    return s3_get(f"{y}/{fm.file_name}", headers={'Range': f'bytes={start}-{end-1}'}).content
 
 
 def load_data_points(
