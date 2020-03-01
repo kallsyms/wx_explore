@@ -72,7 +72,7 @@ class HRRR(IngestSource):
                 if direction_sf.projection is None:
                     direction_sf.projection_id = projection.id
                 elif direction_sf.projection != projection:
-                    logger.error("Projection change in speed field")
+                    logger.error("Projection change in direction field")
 
                 db.session.commit()
 

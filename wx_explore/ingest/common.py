@@ -34,7 +34,7 @@ def get_or_create_projection(msg):
     if lons.max() > 180:
         lons = numpy.vectorize(lambda n: n if 0 <= n < 180 else n-360)(lons)
 
-    ll_hash = binascii.crc32(numpy.array([lats, lons]).tobytes())
+    ll_hash = binascii.crc32(numpy.round([lats, lons], 8).tobytes())
 
     projection = Projection.query.filter_by(
         params=msg.projparams,
@@ -100,12 +100,17 @@ def create_files(proj_id: int, fields: Dict[Tuple[int, datetime.datetime, dateti
     combined = numpy.stack(vals, axis=-1)
     fm.loc_size = offset
 
+    logging.info("Creating file group %s", s3_file_name)
+
     with concurrent.futures.ThreadPoolExecutor(32) as executor:
         session_allocator.alloc_sessions(32)
-        concurrent.futures.wait([
+        futures = concurrent.futures.wait([
             executor.submit(_upload, s3_file_name, y, vals)
             for y, vals in enumerate(combined)
         ])
+        for fut in futures.done:
+            if fut.exception() is not None:
+                logger.warning("Exception creating files: %s", fut.exception())
 
     db.session.add_all(metas)
     db.session.commit()

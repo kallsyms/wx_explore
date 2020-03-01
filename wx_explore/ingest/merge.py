@@ -90,10 +90,13 @@ def merge():
         # 10 rows keeps us well under 1GB which is what this should be provisioned for.
         with concurrent.futures.ThreadPoolExecutor(10) as executor:
             session_allocator.alloc_sessions(10)
-            concurrent.futures.wait([
+            futures = concurrent.futures.wait([
                 executor.submit(create_merged_stripe, files, used_idxs, s3_file_name, n_x, y)
                 for y in range(n_y)
             ])
+            for fut in futures.done:
+                if fut.exception() is not None:
+                    logger.warning("Exception creating files: %s", fut.exception())
 
         logger.info("Created merged S3 file group %s", s3_file_name)
 
