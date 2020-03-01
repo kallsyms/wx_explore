@@ -161,7 +161,7 @@ class FileMeta(Base):
     file_name = Column(String(4096), primary_key=True)
     projection_id = Column(Integer, ForeignKey('projection.id'))
     ctime = Column(DateTime, default=datetime.datetime.utcnow)
-    loc_size = Column(Integer)
+    loc_size = Column(Integer, nullable=False)
 
     projection = relationship('Projection')
 

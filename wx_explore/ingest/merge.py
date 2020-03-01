@@ -83,6 +83,11 @@ def merge():
         )
         db.session.add(merged_meta)
 
+        # If we fail to create any merged band, don't commit the changes to
+        # band offset/file name, but _do_ commit the FileMeta to the DB.
+        # This way the normal cleaning process will remove any orphaned bands.
+        commit_merged = True
+
         # max workers = 10 to limit mem utilization
         # Approximate worst case, we'll have
         # (5 sources * 70 runs * 2000 units wide * 20 metrics/unit * 4 bytes per metric) per row
@@ -96,17 +101,18 @@ def merge():
             ])
             for fut in futures.done:
                 if fut.exception() is not None:
-                    logger.warning("Exception creating files: %s", fut.exception())
+                    logger.error("Exception merging: %s", fut.exception())
+                    commit_merged = False
 
-        logger.info("Created merged S3 file group %s", s3_file_name)
+        if commit_merged:
+            for band, offset in new_offsets.items():
+                band.offset = offset
+                band.file_name = merged_meta.file_name
 
-        for band, offset in new_offsets.items():
-            band.offset = offset
-            band.file_name = merged_meta.file_name
+            logger.info("Updated file band meta")
 
         db.session.commit()
 
-        logger.info("Updated file band meta")
 
 
 if __name__ == "__main__":

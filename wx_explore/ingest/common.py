@@ -80,7 +80,6 @@ def create_files(proj_id: int, fields: Dict[Tuple[int, datetime.datetime, dateti
         projection_id=proj_id,
     )
     db.session.add(fm)
-    db.session.commit()
 
     offset = 0
     for i, ((field_id, valid_time, run_time), msgs) in enumerate(fields.items()):
