@@ -21,18 +21,12 @@ def clean_old_datas():
         FileMeta.ctime <= datetime.utcnow() - timedelta(hours=1),  # make sure we don't delete files being populated right now
     ).all()
 
-    objs = []
-
-    for f in files:
-        objs.extend(f"{y}/{f.file_name}" for y in range(f.projection.n_y))
-
     s3 = get_s3_bucket()
-    s3.delete_objects(Delete={'Objects': [{'Key': o} for o in objs]})
 
     for f in files:
+        s3.delete_objects(Delete={'Objects': [{'Key': f"{y}/{f.file_name}"} for y in range(f.projection.n_y)]})
         db.session.delete(f)
-
-    db.session.commit()
+        db.session.commit()
 
 
 if __name__ == "__main__":
