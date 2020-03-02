@@ -51,6 +51,22 @@ export default class App extends React.Component {
   render() {
     const year = new Date().getFullYear();
 
+    let body;
+
+    if (this.state.location == null) {
+      body = (
+        <Row className="justify-content-md-center">
+          <Col md="auto">
+            <h4>Enter you location to get started</h4>
+          </Col>
+        </Row>
+      );
+    } else {
+      body = (
+        <ForecastView location={this.state.location} converter={this.state.unitConverter}/>
+      );
+    }
+
     return (
       <div className="App">
         <Navbar bg="dark" variant="dark">
@@ -62,7 +78,7 @@ export default class App extends React.Component {
           </Form>
         </Navbar>
         <Container style={{marginTop: "1em"}}>
-          <ForecastView location={this.state.location} converter={this.state.unitConverter}/>
+          {body}
         </Container>
         <footer class="footer">
           <Container fluid={true} style={{height: "100%"}}>
