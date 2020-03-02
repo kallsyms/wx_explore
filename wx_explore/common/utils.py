@@ -145,7 +145,12 @@ class ContinuousTimeList(list):
             if isinstance(key.start, datetime.datetime):
                 key = slice(self._idx_for_dt(key.start), key.stop, key.step)
             if isinstance(key.stop, datetime.datetime):
-                key = slice(key.start, self._idx_for_dt(key.stop), key.step)
+                # +1 on stop idx since time sets should be inclusive
+                key = slice(key.start, self._idx_for_dt(key.stop) + 1, key.step)
+
+            if key.stop > len(self):
+                raise Exception("Can't implicitly expand ContinuousTimeList")
+
             # Allow for doing things like l[start:end] = event
             if not isinstance(val, Iterable):
                 for i in range(*key.indices(len(self))):
