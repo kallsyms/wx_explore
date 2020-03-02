@@ -193,10 +193,10 @@ export default class ForecastView extends React.Component {
 
     return (
       <Row className="justify-content-md-center">
-        <Col xs={2}>
+        <Col md={2}>
           <i style={{fontSize: "7em"}} class={"wi " + cloudCoverIcon}></i>
         </Col>
-        <Col xs={3}>
+        <Col md={3}>
           <h4>{this.props.converter.convert(summary.temps[0].temperature, 'K')} {capitalize(summary.cloud_cover[0].cover)}</h4>
           <p>High: {this.props.converter.convert(summary.high.temperature, 'K')}</p>
           <p>Low: {this.props.converter.convert(summary.low.temperature, 'K')}</p>

@@ -57,7 +57,7 @@ export default class App extends React.Component {
       body = (
         <Row className="justify-content-md-center">
           <Col md="auto">
-            <h4>Enter you location to get started</h4>
+            <h4>Enter your location to get started</h4>
           </Col>
         </Row>
       );
@@ -91,7 +91,7 @@ export default class App extends React.Component {
                 <span class="text-muted">&copy; {year}</span>
               </Col>
               <Col xs="8" className="align-self-center">
-                <span class="text-muted" style={{fontSize: "0.75em"}}>
+                <span class="text-muted" style={{fontSize: "0.75em", display: "block", lineHeight: "1.5em"}}>
                   The data on this website is best-effort, and no guarantees are made about the availability or correctness of the data. It should not be used for critical decision making.
                 </span>
               </Col>
