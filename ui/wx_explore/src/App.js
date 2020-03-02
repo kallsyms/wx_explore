@@ -2,7 +2,12 @@ import React from 'react';
 import Nav from 'react-bootstrap/Nav';
 import Navbar from 'react-bootstrap/Navbar';
 import Container from 'react-bootstrap/Container';
+import Row from 'react-bootstrap/Row';
+import Col from 'react-bootstrap/Col';
 import Form from 'react-bootstrap/Form';
+
+import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
+import { faGithub } from '@fortawesome/free-brands-svg-icons'
 
 import Api from './Api';
 import ForecastView from './ForecastView';
@@ -44,6 +49,8 @@ export default class App extends React.Component {
   }
 
   render() {
+    const year = new Date().getFullYear();
+
     return (
       <div className="App">
         <Navbar bg="dark" variant="dark">
@@ -57,6 +64,24 @@ export default class App extends React.Component {
         <Container style={{marginTop: "1em"}}>
           <ForecastView location={this.state.location} converter={this.state.unitConverter}/>
         </Container>
+        <footer class="footer">
+          <Container fluid={true} style={{height: "100%"}}>
+            <Row className="h-100">
+              <Col xs="4" className="align-self-center">
+                <a target="_blank" rel="noopener noreferrer" href="https://github.com/kallsyms/wx_explore" class="text-muted">
+                  kallsyms/wx_explore on <FontAwesomeIcon icon={faGithub} size="lg"/>
+                </a>
+                <br/>
+                <span class="text-muted">&copy; {year}</span>
+              </Col>
+              <Col xs="8" className="align-self-center">
+                <span class="text-muted" style={{fontSize: "0.75em"}}>
+                  The data on this website is best-effort, and no guarantees are made about the availability or correctness of the data. It should not be used for critical decision making.
+                </span>
+              </Col>
+            </Row>
+          </Container>
+        </footer>
       </div>
     );
   }

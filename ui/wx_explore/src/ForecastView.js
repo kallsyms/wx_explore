@@ -119,7 +119,8 @@ export default class ForecastView extends React.Component {
           metrics[metric.id][source.id][data_point.run_time] = [];
         }
 
-        metrics[metric.id][source.id][data_point.run_time].push({x: new Date(ts * 1000), y: data_point.value});
+        const [val, _] = this.props.converter.convert(data_point.value, metric.units);
+        metrics[metric.id][source.id][data_point.run_time].push({x: new Date(ts * 1000), y: val});
       }
     }
 
@@ -192,8 +193,8 @@ export default class ForecastView extends React.Component {
 
     return (
       <Row className="justify-content-md-center">
-        <Col xs={3}>
-          <i class={"wi " + cloudCoverIcon}></i>
+        <Col xs={2}>
+          <i style={{fontSize: "7em"}} class={"wi " + cloudCoverIcon}></i>
         </Col>
         <Col xs={3}>
           <h4>{this.props.converter.convert(summary.temps[0].temperature, 'K')} {capitalize(summary.cloud_cover[0].cover)}</h4>
@@ -229,7 +230,7 @@ export default class ForecastView extends React.Component {
   }
 
   render() {
-    if (this.state.wx == null || this.state.summary == null || this.state.sources == null || this.state.source_fields == null || this.state.metrics == null) {
+    if (this.state.summary == null || this.state.sources == null || this.state.source_fields == null || this.state.metrics == null) {
       return (
         <Spinner animation="border" role="status">
           <span className="sr-only">Loading...</span>
@@ -237,44 +238,52 @@ export default class ForecastView extends React.Component {
       );
     }
 
-    let datasets = this.chartjsData();
     let charts = [];
 
-    const options = {
-      scales: {
-        xAxes: [{
-          type: 'time',
-          distribution: 'linear',
-          time: {
-            unit: 'hour',
-          },
-        }],
-      },
-      legend: {
-        display: false,
-      },
-    };
-
-    for (const metric_id in datasets) {
-      const metric = this.state.metrics[metric_id];
-      const data = {
-        datasets: datasets[metric_id],
-      };
-      let opts = {
-        ...options,
-        title: {
-          display: true,
-          text: metric.name,
+    if (this.state.wx == null) {
+      charts.push(
+        <Spinner animation="border" role="status">
+          <span className="sr-only">Loading...</span>
+        </Spinner>
+      );
+    } else {
+      let datasets = this.chartjsData();
+      const options = {
+        scales: {
+          xAxes: [{
+            type: 'time',
+            distribution: 'linear',
+            time: {
+              unit: 'hour',
+            },
+          }],
+        },
+        legend: {
+          display: false,
         },
       };
-      charts.push(
-        <Row className="justify-content-md-center">
-          <Col>
-            <LineChart key={metric.name} data={data} options={opts}/>
-          </Col>
-        </Row>
-      );
-    };
+
+      for (const metric_id in datasets) {
+        const metric = this.state.metrics[metric_id];
+        const data = {
+          datasets: datasets[metric_id],
+        };
+        let opts = {
+          ...options,
+          title: {
+            display: true,
+            text: metric.name,
+          },
+        };
+        charts.push(
+          <Row>
+            <Col>
+              <LineChart key={metric.name} data={data} options={opts}/>
+            </Col>
+          </Row>
+        );
+      };
+    }
 
     return (
       <div>
