@@ -67,6 +67,7 @@ def _upload(s3_file_name, y, d):
             Key=f"{y}/{s3_file_name}",
             Body=d.tobytes(),
         )
+        del s3
 
 
 def create_files(proj_id: int, fields: Dict[Tuple[int, datetime.datetime, datetime.datetime], List[numpy.array]]):

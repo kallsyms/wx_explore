@@ -41,6 +41,8 @@ def create_merged_stripe(files, used_idxs, s3_file_name, n_x, y):
         with session_allocator.get_session() as s:
             s3 = get_s3_bucket(s)
             s3.upload_fileobj(merged, f"{y}/{s3_file_name}")
+            # Potential workaround for https://github.com/boto/boto3/issues/1670
+            del s3
 
 
 def merge():
