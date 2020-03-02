@@ -10,6 +10,8 @@ from wx_explore.common.models import (
 from wx_explore.common.storage import get_s3_bucket
 from wx_explore.web.core import db
 
+logger = logging.getLogger(__name__)
+
 
 def clean_old_datas():
     oldest_time = datetime.utcnow() - timedelta(days=1)
@@ -25,6 +27,7 @@ def clean_old_datas():
     s3 = get_s3_bucket()
 
     for f in files:
+        logger.info("Removing stale file group %s", f.file_name)
         s3.delete_objects(Delete={'Objects': [{'Key': f"{y}/{f.file_name}"} for y in range(f.projection.n_y)]})
         db.session.delete(f)
         db.session.commit()

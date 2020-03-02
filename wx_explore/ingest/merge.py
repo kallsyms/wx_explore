@@ -65,8 +65,6 @@ def merge():
         max_batch_size = max(len(proj_files) // 4, 10)
 
         for files in chunk(proj_files, max_batch_size):
-            logger.info("Merging %s", ','.join(f.file_name for f in files))
-
             # This next part is all about figuring out what items are still used in
             # each file so that the merge process can effectively garbage collect
             # unused data.
@@ -94,6 +92,8 @@ def merge():
                 loc_size=offset,
             )
             db.session.add(merged_meta)
+
+            logger.info("Merging %s into %s", ','.join(f.file_name for f in files), s3_file_name)
 
             n_y, n_x = proj.shape()
 
