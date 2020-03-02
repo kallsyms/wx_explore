@@ -59,8 +59,10 @@ def merge():
     for f in all_files:
         proj_files[f.projection].append(f)
 
-    for proj, proj_files in proj_files.items():
-        if len(proj_files) < 2:
+    # Pull from the projection with the most backlog first
+    for proj, proj_files in sorted(proj_files.items(), key=lambda pair: len(pair[1]), reverse=True):
+        # Don't waste time if we don't really have that many files
+        if len(proj_files) < 8:
             continue
 
         # Merge in smaller batches to more quickly reduce S3 load per query.
