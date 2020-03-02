@@ -15,7 +15,7 @@ class GFS(IngestSource):
     @staticmethod
     def queue(
             time_min: int = 0,
-            time_max: int = 384,
+            time_max: int = 120,  # Goes out to 384, but we don't really care for general usage
             run_time: Optional[datetime] = None,
             acquire_time: Optional[datetime] = None
     ):
