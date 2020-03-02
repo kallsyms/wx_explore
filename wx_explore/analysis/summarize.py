@@ -371,7 +371,7 @@ class SummarizedData(object):
                 })
                 components.append({
                     "type": "text",
-                    "text": f"around {pe2.start.hour}",
+                    "text": f"around {pe2.start.hour}:00 UTC",  # XXX: use loc TZ
                 })
         else:
             sky_cond = self.cloud_cover[rel_time]
@@ -403,7 +403,7 @@ class SummarizedData(object):
                     })
                     components.append({
                         "type": "text",
-                        "text": f"starting around {pe.start.hour}",
+                        "text": f"starting around {pe.start.hour}:00 UTC",
                     })
                     break
             # TODO: sky cond + wind
