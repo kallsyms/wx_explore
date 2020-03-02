@@ -1,3 +1,6 @@
+from wx_explore.common.logging import init_sentry
+init_sentry(flask=True)
+
 from wx_explore.web.core import app
 
 from wx_explore.web.api import api

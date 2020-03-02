@@ -16,5 +16,7 @@ class Config():
     INGEST_S3_BUCKET     = os.environ['INGEST_S3_BUCKET']
     INGEST_S3_ENDPOINT   = os.environ.get('INGEST_S3_ENDPOINT')
 
+    SENTRY_ENDPOINT = os.environ.get('SENTRY_ENDPOINT')
+
 
 Config.SQLALCHEMY_DATABASE_URI = f"postgres://{Config.POSTGRES_USER}:{Config.POSTGRES_PASS}@{Config.POSTGRES_HOST}/{Config.POSTGRES_DB}"

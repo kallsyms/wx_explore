@@ -5,6 +5,7 @@ import logging
 
 from wx_explore.analysis.transformations import cartesian_to_polar
 from wx_explore.common import metrics
+from wx_explore.common.logging import init_sentry
 from wx_explore.common.models import (
     Source,
     SourceField,
@@ -115,5 +116,6 @@ class HRRR(IngestSource):
 
 
 if __name__ == "__main__":
+    init_sentry()
     logging.basicConfig(level=logging.INFO)
     HRRR.queue()

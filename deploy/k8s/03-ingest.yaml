@@ -64,6 +64,11 @@ spec:
                   configMapKeyRef:
                     name: wx-explore
                     key: ingest-s3-endpoint
+              - name: SENTRY_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: sentry-endpoint
 
 ---
 apiVersion: batch/v1beta1
@@ -132,6 +137,11 @@ spec:
                   configMapKeyRef:
                     name: wx-explore
                     key: ingest-s3-endpoint
+              - name: SENTRY_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: sentry-endpoint
 
 ---
 apiVersion: batch/v1beta1
@@ -201,6 +211,11 @@ spec:
                   configMapKeyRef:
                     name: wx-explore
                     key: ingest-s3-endpoint
+              - name: SENTRY_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: sentry-endpoint
 
 ---
 apiVersion: batch/v1beta1
@@ -268,6 +283,11 @@ spec:
                   configMapKeyRef:
                     name: wx-explore
                     key: ingest-s3-endpoint
+              - name: SENTRY_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: sentry-endpoint
 
 ---
 apiVersion: batch/v1beta1
@@ -335,6 +355,11 @@ spec:
                   configMapKeyRef:
                     name: wx-explore
                     key: ingest-s3-endpoint
+              - name: SENTRY_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: sentry-endpoint
 
 ---
 apiVersion: batch/v1beta1
@@ -402,3 +427,8 @@ spec:
                   configMapKeyRef:
                     name: wx-explore
                     key: ingest-s3-endpoint
+              - name: SENTRY_ENDPOINT
+                valueFrom:
+                  secretKeyRef:
+                    name: wx-explore
+                    key: sentry-endpoint

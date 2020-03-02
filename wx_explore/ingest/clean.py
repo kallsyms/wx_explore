@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 import logging
 
+from wx_explore.common.logging import init_sentry
 from wx_explore.common.models import (
     FileMeta,
     FileBandMeta,
@@ -30,5 +31,6 @@ def clean_old_datas():
 
 
 if __name__ == "__main__":
+    init_sentry()
     logging.basicConfig(level=logging.INFO)
     clean_old_datas()

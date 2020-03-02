@@ -4,8 +4,10 @@ import logging
 import tempfile
 
 from wx_explore.ingest.grib import get_grib_ranges, ingest_grib_file
+from wx_explore.common.logging import init_sentry
 from wx_explore.common.models import Source
 
+init_sentry()
 
 logging.basicConfig(level=logging.DEBUG,
                     format='%(asctime)s.%(msecs)03d %(levelname)s %(module)s - %(funcName)s: %(message)s',

@@ -4,6 +4,7 @@ from datetime import datetime, timedelta
 import logging
 import tempfile
 
+from wx_explore.common.logging import init_sentry
 from wx_explore.common.models import Source
 from wx_explore.common.utils import url_exists
 from wx_explore.ingest.common import get_queue
@@ -54,5 +55,6 @@ def ingest_from_queue():
 
 
 if __name__ == "__main__":
+    init_sentry()
     logging.basicConfig(level=logging.INFO)
     ingest_from_queue()

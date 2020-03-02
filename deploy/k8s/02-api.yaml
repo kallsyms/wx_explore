@@ -64,6 +64,11 @@ spec:
                 configMapKeyRef:
                   name: wx-explore
                   key: ingest-s3-endpoint
+            - name: SENTRY_ENDPOINT
+              valueFrom:
+                secretKeyRef:
+                  name: wx-explore
+                  key: sentry-endpoint
           ports:
             - name: http
               containerPort: 8080

@@ -3,6 +3,7 @@ from datetime import datetime, timedelta
 from typing import Optional
 import logging
 
+from wx_explore.common.logging import init_sentry
 from wx_explore.common.utils import datetime2unix
 from wx_explore.ingest.common import get_queue
 from wx_explore.ingest.sources.source import IngestSource
@@ -43,5 +44,6 @@ class NAM(IngestSource):
 
 
 if __name__ == "__main__":
+    init_sentry()
     logging.basicConfig(level=logging.INFO)
     NAM.queue()
