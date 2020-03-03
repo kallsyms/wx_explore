@@ -1,0 +1,10 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: wx-explore
+data:
+  INGEST_S3_BUCKET: wx-denormalized
+  INGEST_S3_ENDPOINT: http://s3.nyc1.as65535.net:9000
+  INGEST_S3_REGION: us-east-1
+  POSTGRES_DB: wx
+  POSTGRES_HOST: db.nyc1.as65535.net

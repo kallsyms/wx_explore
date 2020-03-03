@@ -1,0 +1,158 @@
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-clean
+spec:
+  schedule: "0 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-clean
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.clean
+            envFrom:
+              - configMapRef:
+                  name: wx-explore
+              - secretRef:
+                  name: wx-explore
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-merge
+spec:
+  schedule: "*/30 * * * *"
+  concurrencyPolicy: Forbid
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-merge
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.merge
+            envFrom:
+              - configMapRef:
+                  name: wx-explore
+              - secretRef:
+                  name: wx-explore
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-worker
+spec:
+  schedule: "*/5 * * * *"
+  startingDeadlineSeconds: 300
+  jobTemplate:
+    spec:
+      activeDeadlineSeconds: 3600
+      template:
+        spec:
+          restartPolicy: Never
+          containers:
+          - name: wx-explore-worker
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.worker
+            envFrom:
+              - configMapRef:
+                  name: wx-explore
+              - secretRef:
+                  name: wx-explore
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-hrrr
+spec:
+  schedule: "0 * * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-hrrr
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.sources.hrrr
+            envFrom:
+              - configMapRef:
+                  name: wx-explore
+              - secretRef:
+                  name: wx-explore
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-gfs
+spec:
+  schedule: "0 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-gfs
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.sources.gfs
+            envFrom:
+              - configMapRef:
+                  name: wx-explore
+              - secretRef:
+                  name: wx-explore
+
+---
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: wx-explore-nam
+spec:
+  schedule: "0 */6 * * *"
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          restartPolicy: OnFailure
+          containers:
+          - name: wx-explore-nam
+            image: kallsyms/wx_explore:latest
+            imagePullPolicy: Always
+            args:
+            - python3
+            - -m
+            - wx_explore.ingest.sources.nam
+            envFrom:
+              - configMapRef:
+                  name: wx-explore
+              - secretRef:
+                  name: wx-explore

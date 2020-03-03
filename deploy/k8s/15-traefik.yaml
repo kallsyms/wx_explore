@@ -1,0 +1,32 @@
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wx-explore-api-http
+  namespace: default
+spec:
+  entryPoints:
+    - http
+  routes:
+  - match: Host(`api.vortexweather.tech`)
+    kind: Rule
+    services:
+    - name: wx-explore-api
+      port: 80
+
+---
+apiVersion: traefik.containo.us/v1alpha1
+kind: IngressRoute
+metadata:
+  name: wx-explore-api-tls
+  namespace: default
+spec:
+  entryPoints:
+    - https
+  routes:
+  - match: Host(`api.vortexweather.tech`)
+    kind: Rule
+    services:
+    - name: wx-explore-api
+      port: 80
+  tls:
+    certResolver: default

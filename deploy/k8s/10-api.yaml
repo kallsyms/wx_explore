@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: wx-explore-api
+  labels:
+    app: wx-explore-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: wx-explore-api
+  template:
+    metadata:
+      labels:
+        app: wx-explore-api
+    spec:
+      containers:
+        - name: wx-explore-api
+          image: kallsyms/wx_explore:latest
+          imagePullPolicy: Always
+          envFrom:
+            - configMapRef:
+                name: wx-explore
+            - secretRef:
+                name: wx-explore
+          ports:
+            - name: http
+              containerPort: 8080
+              protocol: TCP
+
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: wx-explore-api
+spec:
+  selector:
+    app: wx-explore-api
+  ports:
+    - name: http
+      protocol: TCP
+      port: 80
+      targetPort: 8080
