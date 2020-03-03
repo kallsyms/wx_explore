@@ -9,6 +9,7 @@ pq = PQ(
         user=Config.POSTGRES_USER,
         password=Config.POSTGRES_PASS,
         host=Config.POSTGRES_HOST,
+        port=Config.POSTGRES_PORT,
         dbname=Config.POSTGRES_DB,
     ),
     table='work_queue')
