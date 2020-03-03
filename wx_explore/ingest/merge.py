@@ -4,14 +4,13 @@ import concurrent.futures
 import hashlib
 import logging
 import numpy
-import tempfile
 
 from wx_explore.common.logging import init_sentry
 from wx_explore.common.models import (
     FileMeta,
     FileBandMeta,
 )
-from wx_explore.common.storage import s3_get, session_allocator, get_s3_bucket
+from wx_explore.common.storage import s3_get, s3_put
 from wx_explore.common.utils import chunk
 from wx_explore.web.core import db
 
@@ -31,18 +30,8 @@ def create_merged_stripe(files, used_idxs, s3_file_name, n_x, y):
     with concurrent.futures.ThreadPoolExecutor(10) as executor:
         contents = list(executor.map(partial(load_stripe, used_idxs, y, n_x), files))
 
-    # Use upload_fileobj here instead of put'ing bytes directly because
-    # boto3 can use threads to make the upload faster (since these merged
-    # files may be a few hundred megs)
-    with tempfile.TemporaryFile() as merged:
-        merged.write(numpy.concatenate(contents, axis=1).tobytes())
-        merged.seek(0)
-
-        with session_allocator.get_session() as s:
-            s3 = get_s3_bucket(s)
-            s3.upload_fileobj(merged, f"{y}/{s3_file_name}")
-            # Potential workaround for https://github.com/boto/boto3/issues/1670
-            del s3
+    d = numpy.concatenate(contents, axis=1).tobytes()
+    s3_put(f"{y}/{s3_file_name}", d)
 
 
 def merge():
@@ -112,7 +101,6 @@ def merge():
             # or ~50MB/row in memory.
             # 10 rows keeps us well under 1GB which is what this should be provisioned for.
             with concurrent.futures.ThreadPoolExecutor(10) as executor:
-                session_allocator.alloc_sessions(10)
                 futures = concurrent.futures.wait([
                     executor.submit(create_merged_stripe, files, used_idxs, s3_file_name, n_x, y)
                     for y in range(n_y)

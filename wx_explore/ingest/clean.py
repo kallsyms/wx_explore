@@ -8,7 +8,7 @@ from wx_explore.common.models import (
     FileMeta,
     FileBandMeta,
 )
-from wx_explore.common.storage import get_s3_bucket, session_allocator
+from wx_explore.common.storage import get_s3_bucket
 from wx_explore.web.core import db
 
 logger = logging.getLogger(__name__)
@@ -41,14 +41,13 @@ def clean_old_datas():
         # creation happens in one atomic commit.
     ).all()
 
-    with session_allocator.get_session() as s:
-        s3 = get_s3_bucket(s)
+    s3 = get_s3_bucket()
 
-        for f in files:
-            logger.info("Removing stale file group %s", f.file_name)
-            s3.delete_objects(Delete={'Objects': [{'Key': f"{y}/{f.file_name}"} for y in range(f.projection.n_y)]})
-            db.session.delete(f)
-            db.session.commit()
+    for f in files:
+        logger.info("Removing stale file group %s", f.file_name)
+        s3.delete_objects(Delete={'Objects': [{'Key': f"{y}/{f.file_name}"} for y in range(f.projection.n_y)]})
+        db.session.delete(f)
+        db.session.commit()
 
 
 if __name__ == "__main__":

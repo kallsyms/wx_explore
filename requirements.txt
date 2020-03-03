@@ -16,3 +16,4 @@ pillow
 arm_pyart
 boto3
 sentry-sdk[flask]==0.14.2
+aws-requests-auth==0.4.2
