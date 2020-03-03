@@ -8,6 +8,7 @@ from wx_explore.common.models import (
     FileMeta,
     FileBandMeta,
 )
+from wx_explore.common.utils import chunk
 from wx_explore.common.storage import get_s3_bucket
 from wx_explore.web.core import db
 
@@ -45,7 +46,8 @@ def clean_old_datas():
 
     for f in files:
         logger.info("Removing stale file group %s", f.file_name)
-        s3.delete_objects(Delete={'Objects': [{'Key': f"{y}/{f.file_name}"} for y in range(f.projection.n_y)]})
+        for ys in chunk(range(f.projection.n_y), 1000):
+            s3.delete_objects(Delete={'Objects': [{'Key': f"{y}/{f.file_name}"} for y in ys]})
         db.session.delete(f)
         db.session.commit()
 
