@@ -2,6 +2,7 @@
 from datetime import datetime, timedelta
 from sqlalchemy import func
 import logging
+import os
 
 from wx_explore.common.logging import init_sentry
 from wx_explore.common.models import (
@@ -19,6 +20,7 @@ def clean_old_datas():
     # Delete all band metadata that is too old
     oldest_time = datetime.utcnow() - timedelta(days=1)
     FileBandMeta.query.filter(FileBandMeta.valid_time < oldest_time).delete()
+    db.session.commit()
 
     # For things >1day old and < now, only keep the most recent run per (sourcefield, valid_time)
     most_recent = FileBandMeta.query.with_entities(func.max(FileBandMeta.run_time), FileBandMeta.source_field_id, FileBandMeta.valid_time).filter(
@@ -45,11 +47,31 @@ def clean_old_datas():
     s3 = get_s3_bucket()
 
     for f in files:
-        logger.info("Removing stale file group %s", f.file_name)
+        logger.info("Removing unused file group %s", f.file_name)
         for ys in chunk(range(f.projection.n_y), 1000):
             s3.delete_objects(Delete={'Objects': [{'Key': f"{y}/{f.file_name}"} for y in ys]})
         db.session.delete(f)
         db.session.commit()
+
+    # Now that we've removed everything we know we can, look for any files in S3
+    # which aren't tracked by a FileMeta. In theory this can only happen with
+    # bad code, but is worth checking for to prevent S3 usage from growing
+    # unbounded.
+    logger.info("Finding orphaned files to remove...")
+    known_fns = set(fm.file_name for fm in FileMeta.query.all())
+    to_del = []
+
+    for obj in s3.objects.all():
+        # Ignore things that are new
+        if obj.last_modified >= datetime.now(obj.last_modified.tzinfo) - timedelta(hours=3):
+            continue
+
+        if os.path.basename(obj.key) not in known_fns:
+            to_del.append(obj.key)
+
+    logger.info("Removing %d orphaned files", len(to_del))
+    for grp in chunk(to_del, 1000):
+        s3.delete_objects(Delete={'Objects': [{'Key': key} for key in grp]})
 
 
 if __name__ == "__main__":
