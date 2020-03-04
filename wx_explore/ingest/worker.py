@@ -30,7 +30,7 @@ def ingest_from_queue():
             continue
 
         # If this URL doesn't exist, try again in a few minutes
-        if not url_exists(ingest_req['url']):
+        if not (url_exists(ingest_req['url']) and url_exists(ingest_req['idx_url'])):
             logger.info("Rescheduling request %s", ingest_req)
             q.put(ingest_req, '5m')
             continue
