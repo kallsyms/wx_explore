@@ -23,4 +23,4 @@ class IngestSource(object):
 
     @staticmethod
     def generate_derived(grib: pygrib.open):
-        pass
+        return {}

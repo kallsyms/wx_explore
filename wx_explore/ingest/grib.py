@@ -131,14 +131,13 @@ def ingest_grib_file(file_path, source):
             valid_date = get_end_valid_time(msg)
             data_by_projection[field.projection.id][(field.id, valid_date, msg.analDate)].append(msg.values)
 
-    logger.info("Saving denormalized location/time data for all messages")
+    logger.info("Generating derived fields")
+    for proj_id, fields in get_source_module(source.short_name).generate_derived(grib).items():
+        for k, v in fields.items():
+            data_by_projection[proj_id][k].extend(v)
 
+    logger.info("Saving denormalized location/time data for all messages")
     for proj_id, fields in data_by_projection.items():
         create_files(proj_id, fields)
 
     logger.info("Done saving denormalized data")
-    logger.info("Generating derived fields")
-
-    get_source_module(source.short_name).generate_derived(grib)
-
-    logger.info("Done")

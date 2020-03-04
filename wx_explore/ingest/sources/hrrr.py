@@ -78,12 +78,13 @@ class HRRR(IngestSource):
                 db.session.commit()
 
         if projection is not None:
-            logging.debug("Creating files")
-            create_files(projection.id, to_insert)
+            return {
+                projection.id: to_insert,
+            }
+
         else:
             logger.warning("No U/V pairs ingested")
-
-        logging.debug("Done")
+            return {}
 
     @staticmethod
     def queue(
