@@ -54,8 +54,8 @@ def merge():
         if len(proj_files) < 8:
             continue
 
-        # Merge in smaller batches to more quickly reduce S3 load per query.
-        max_batch_size = max(len(proj_files) // 4, 10)
+        # Merge in smaller batches (10 <= batch_size <= 50) to more quickly reduce S3 load per query.
+        max_batch_size = min(max(len(proj_files) // 4, 10), 50)
 
         for files in chunk(proj_files, max_batch_size):
             # This next part is all about figuring out what items are still used in
