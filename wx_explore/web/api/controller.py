@@ -1,5 +1,6 @@
 from datetime import datetime, timedelta
 from flask import Blueprint, abort, jsonify, request
+from sqlalchemy import or_
 
 import collections
 import sqlalchemy
@@ -8,13 +9,16 @@ from wx_explore.analysis.summarize import (
     combine_models,
     SummarizedData,
 )
+from wx_explore.common import (
+    metrics,
+    tracing,
+)
 from wx_explore.common.models import (
     Source,
     SourceField,
     Location,
     Metric,
 )
-from wx_explore.common import metrics
 from wx_explore.common.storage import load_data_points
 from wx_explore.common.utils import datetime2unix
 from wx_explore.web.app import app
@@ -75,7 +79,7 @@ def get_location_from_query():
         abort(400)
 
     # Fixes basic weird results that could come from users entering '\'s, '%'s, or '_'s
-    search = search.replace('\\', '\\\\').replace('_', '\_').replace('%', '\%')
+    search = search.replace('\\', '\\\\').replace('_', '\\_').replace('%', '\\%')
     search = search.replace(',', '')
     search = search.lower()
 
@@ -152,7 +156,11 @@ def wx_for_location():
         SourceField.projection_id != None,  # noqa: E711
     ).all()
 
-    data_points = load_data_points((lat, lon), start, end, requested_source_fields)
+    with tracing.start_span("load_data_points") as span:
+        span.set_attribute("start", str(start))
+        span.set_attribute("end", str(end))
+        span.set_attribute("source_fields", str(requested_source_fields))
+        data_points = load_data_points((lat, lon), start, end, requested_source_fields)
 
     # valid time -> data points
     datas = collections.defaultdict(list)
@@ -201,16 +209,27 @@ def summarize():
             if start < now - timedelta(days=1):
                 start = now - timedelta(days=1)
 
-    temp_sourcefields = SourceField.query.filter(SourceField.metric == metrics.temp, SourceField.projection_id != None).all()
-    rain_sourcefields = SourceField.query.filter(SourceField.metric == metrics.raining, SourceField.projection_id != None).all()
-    snow_sourcefields = SourceField.query.filter(SourceField.metric == metrics.snowing, SourceField.projection_id != None).all()
-    wind_sourcefields = SourceField.query.filter(SourceField.metric_id.in_([metrics.wind_speed.id, metrics.wind_direction.id, metrics.gust_speed.id]), SourceField.projection_id != None).all()
-    cloud_cover_sourcefields = SourceField.query.filter(SourceField.metric == metrics.cloud_cover, SourceField.projection_id != None).all()
-    reflectivity_sourcefields = SourceField.query.filter(SourceField.metric == metrics.composite_reflectivity, SourceField.projection_id != None).all()
+    source_fields = SourceField.query.filter(
+        or_(
+            SourceField.metric == metrics.temp,
+            SourceField.metric == metrics.raining,
+            SourceField.metric == metrics.snowing,
+            SourceField.metric_id.in_([metrics.wind_speed.id, metrics.wind_direction.id, metrics.gust_speed.id]),
+            SourceField.metric == metrics.cloud_cover,
+            SourceField.metric == metrics.composite_reflectivity,
+        ),
+        SourceField.projection_id != None,
+    ).all()
 
-    data_points = load_data_points((lat, lon), start, start + timedelta(days=days),
-                                   temp_sourcefields + rain_sourcefields + snow_sourcefields + wind_sourcefields + cloud_cover_sourcefields + reflectivity_sourcefields)
-    combined_data_points = combine_models(data_points)
+    with tracing.start_span("load_data_points") as span:
+        end = start + timedelta(days=days)
+        span.set_attribute("start", str(start))
+        span.set_attribute("end", str(end))
+        span.set_attribute("source_fields", str(source_fields))
+        data_points = load_data_points((lat, lon), start, end, source_fields)
+
+    with tracing.start_span("combine_models") as span:
+        combined_data_points = combine_models(data_points)
 
     time_ranges = [(start, start.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1))]
     for d in range(1, days):
@@ -219,8 +238,9 @@ def summarize():
 
     summarizations = []
 
-    for dstart, dend in time_ranges:
-        summary = SummarizedData(dstart, dend, combined_data_points)
-        summarizations.append(summary.dict())
+    with tracing.start_span("summarizations") as span:
+        for dstart, dend in time_ranges:
+            summary = SummarizedData(dstart, dend, combined_data_points)
+            summarizations.append(summary.dict())
 
     return jsonify(summarizations)

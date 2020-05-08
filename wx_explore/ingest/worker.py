@@ -4,8 +4,10 @@ from datetime import datetime, timedelta
 import logging
 import tempfile
 
+from wx_explore.common import tracing
 from wx_explore.common.logging import init_sentry
 from wx_explore.common.models import Source
+from wx_explore.common.tracing import init_tracing
 from wx_explore.common.utils import url_exists
 from wx_explore.ingest.common import get_queue
 from wx_explore.ingest.grib import reduce_grib, ingest_grib_file
@@ -35,26 +37,34 @@ def ingest_from_queue():
             q.put(ingest_req, '5m')
             continue
 
-        try:
-            source = Source.query.filter_by(short_name=ingest_req['source']).first()
+        with tracing.start_span('ingest item') as span:
+            for k, v in ingest_req.items():
+                span.set_attribute(k, v)
 
-            with tempfile.NamedTemporaryFile() as reduced:
-                logging.info(f"Downloading and reducing {ingest_req['url']} from {ingest_req['run_time']} {source.short_name}")
-                reduce_grib(ingest_req['url'], ingest_req['idx_url'], source.fields, reduced)
-                logging.info("Ingesting all")
-                ingest_grib_file(reduced.name, source)
+            try:
+                source = Source.query.filter_by(short_name=ingest_req['source']).first()
 
-            source.last_updated = datetime.utcnow()
+                with tempfile.NamedTemporaryFile() as reduced:
+                    with tracing.start_span('download'):
+                        logging.info(f"Downloading and reducing {ingest_req['url']} from {ingest_req['run_time']} {source.short_name}")
+                        reduce_grib(ingest_req['url'], ingest_req['idx_url'], source.fields, reduced)
+                    with tracing.start_span('ingest'):
+                        logging.info("Ingesting all")
+                        ingest_grib_file(reduced.name, source)
 
-            db.session.commit()
-        except KeyboardInterrupt:
-            raise
-        except Exception as e:
-            logger.exception("Exception while ingesting %s. Will retry", ingest_req)
-            q.put(ingest_req, '5m')
+                source.last_updated = datetime.utcnow()
+
+                db.session.commit()
+            except KeyboardInterrupt:
+                raise
+            except Exception:
+                logger.exception("Exception while ingesting %s. Will retry", ingest_req)
+                q.put(ingest_req, '5m')
 
 
 if __name__ == "__main__":
     init_sentry()
     logging.basicConfig(level=logging.INFO)
-    ingest_from_queue()
+    init_tracing('queue_worker')
+    with tracing.start_span('queue worker'):
+        ingest_from_queue()
