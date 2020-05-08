@@ -5,12 +5,14 @@ import hashlib
 import logging
 import numpy
 
+from wx_explore.common import tracing
 from wx_explore.common.logging import init_sentry
 from wx_explore.common.models import (
     FileMeta,
     FileBandMeta,
 )
 from wx_explore.common.storage import s3_get, s3_put
+from wx_explore.common.tracing import init_tracing
 from wx_explore.common.utils import chunk
 from wx_explore.web.core import db
 
@@ -27,11 +29,13 @@ def load_stripe(used_idxs, y, n_x, f):
 
 
 def create_merged_stripe(files, used_idxs, s3_file_name, n_x, y):
-    with concurrent.futures.ThreadPoolExecutor(10) as executor:
-        contents = list(executor.map(partial(load_stripe, used_idxs, y, n_x), files))
+    with tracing.start_span('stripe loading'):
+        with concurrent.futures.ThreadPoolExecutor(10) as executor:
+            contents = list(executor.map(partial(load_stripe, used_idxs, y, n_x), files))
 
-    d = numpy.concatenate(contents, axis=1).tobytes()
-    s3_put(f"{y}/{s3_file_name}", d)
+    with tracing.start_span('stripe saving'):
+        d = numpy.concatenate(contents, axis=1).tobytes()
+        s3_put(f"{y}/{s3_file_name}", d)
 
 
 def merge():
@@ -100,15 +104,19 @@ def merge():
             # (5 sources * 70 runs * 2000 units wide * 20 metrics/unit * 4 bytes per metric) per row
             # or ~50MB/row in memory.
             # 10 rows keeps us well under 1GB which is what this should be provisioned for.
-            with concurrent.futures.ThreadPoolExecutor(10) as executor:
-                futures = concurrent.futures.wait([
-                    executor.submit(create_merged_stripe, files, used_idxs, s3_file_name, n_x, y)
-                    for y in range(n_y)
-                ])
-                for fut in futures.done:
-                    if fut.exception() is not None:
-                        logger.error("Exception merging: %s", fut.exception())
-                        commit_merged = False
+            with tracing.start_span('parallel stripe creation') as span:
+                span.set_attribute("s3_file_name", s3_file_name)
+                span.set_attribute("num_files", len(files))
+
+                with concurrent.futures.ThreadPoolExecutor(10) as executor:
+                    futures = concurrent.futures.wait([
+                        executor.submit(create_merged_stripe, files, used_idxs, s3_file_name, n_x, y)
+                        for y in range(n_y)
+                    ])
+                    for fut in futures.done:
+                        if fut.exception() is not None:
+                            logger.error("Exception merging: %s", fut.exception())
+                            commit_merged = False
 
             if commit_merged:
                 for band, offset in new_offsets.items():
@@ -123,4 +131,6 @@ def merge():
 if __name__ == "__main__":
     init_sentry()
     logging.basicConfig(level=logging.INFO)
-    merge()
+    init_tracing('merge')
+    with tracing.start_span('merge'):
+        merge()

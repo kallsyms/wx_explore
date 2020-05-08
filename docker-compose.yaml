@@ -18,12 +18,25 @@ services:
         expose:
             - 9000
 
+    jaeger:
+        image: jaegertracing/all-in-one:latest
+        ports:
+            - "5775:5775/udp"
+            - "5778:5778"
+            - "6831:6831/udp"
+            - "6832:6832/udp"
+            - "14268:14268"
+            - "16686:16686"
+        expose:
+            - 6831
+
     wx_explore:
         image: kallsyms/wx_explore:latest
         restart: always
         depends_on:
             - db
             - minio
+            - jaeger
         environment:
             - POSTGRES_USER=postgres
             - POSTGRES_PASS=postgres
@@ -34,7 +47,9 @@ services:
             - INGEST_S3_REGION=us-east-1
             - INGEST_S3_BUCKET=wx-denormalized
             - INGEST_S3_ENDPOINT=http://minio:9000
+            - TRACE_EXPORTER=jaeger
+            - JAEGER_HOST=jaeger
         volumes:
             - ./:/opt/wx_explore
         ports:
-            - 8080:8080
+            - "8080:8080"

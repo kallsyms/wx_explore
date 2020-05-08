@@ -8,6 +8,7 @@ import datetime
 import requests
 import urllib.parse
 
+from wx_explore.common import tracing
 from wx_explore.common.config import Config
 from wx_explore.common.location import get_xy_for_coord
 from wx_explore.common.models import (
@@ -84,7 +85,10 @@ def load_data_points(
             continue
 
         if sf.projection_id not in locs:
-            loc = get_xy_for_coord(sf.projection, coords)
+            with tracing.start_span("get_xy_for_coord") as span:
+                span.set_attribute("projection_id", sf.projection_id)
+                loc = get_xy_for_coord(sf.projection, coords)
+
             # Skip if given projection does not cover coords
             if loc is None:
                 continue
@@ -93,11 +97,12 @@ def load_data_points(
 
         valid_source_fields.append(sf)
 
-    fbms: List[FileBandMeta] = FileBandMeta.query.filter(
-        FileBandMeta.source_field_id.in_([sf.id for sf in valid_source_fields]),
-        FileBandMeta.valid_time >= start,
-        FileBandMeta.valid_time < end,
-    ).all()
+    with tracing.start_span("load file band metas") as span:
+        fbms: List[FileBandMeta] = FileBandMeta.query.filter(
+            FileBandMeta.source_field_id.in_([sf.id for sf in valid_source_fields]),
+            FileBandMeta.valid_time >= start,
+            FileBandMeta.valid_time < end,
+        ).all()
 
     # Gather all files we need data from
     file_metas = set(fbm.file_meta for fbm in fbms)
@@ -106,11 +111,13 @@ def load_data_points(
 
     # Read them in (in parallel)
     # TODO: use asyncio here instead once everything else is ported?
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-        futures = {executor.submit(load_file_chunk, fm, locs[fm.projection_id]): fm for fm in file_metas}
-        for future in concurrent.futures.as_completed(futures):
-            fm = futures[future]
-            file_contents[fm.file_name] = future.result()
+    with tracing.start_span("load file chunks") as span:
+        span.set_attribute("num_files", len(file_metas))
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            futures = {executor.submit(load_file_chunk, fm, locs[fm.projection_id]): fm for fm in file_metas}
+            for future in concurrent.futures.as_completed(futures):
+                fm = futures[future]
+                file_contents[fm.file_name] = future.result()
 
     # filebandmeta -> values
     data_points = []
