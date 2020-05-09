@@ -37,5 +37,19 @@ def init_tracing(service_name):
     tracer = trace.get_tracer(service_name)
 
 
+class NoOpSpan():  #(trace.Span)
+    def __enter__(self):
+        return self
+
+    def __exit__(self, *args):
+        pass
+
+    def set_attribute(self, *args, **kwargs):
+        pass
+
+
 def start_span(span_name):
-    return tracer.start_as_current_span(span_name)
+    if tracer:
+        return tracer.start_as_current_span(span_name)
+    else:
+        return NoOpSpan()
