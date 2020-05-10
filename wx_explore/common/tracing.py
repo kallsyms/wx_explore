@@ -48,8 +48,8 @@ class NoOpSpan():  #(trace.Span)
         pass
 
 
-def start_span(span_name):
+def start_span(span_name, parent=trace.Tracer.CURRENT_SPAN):
     if tracer:
-        return tracer.start_as_current_span(span_name)
+        return tracer.start_as_current_span(span_name, parent=parent)
     else:
         return NoOpSpan()

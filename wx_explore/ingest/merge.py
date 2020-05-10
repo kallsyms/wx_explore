@@ -29,12 +29,12 @@ def load_stripe(used_idxs, y, n_x, f):
     return datas[:, used_idxs[f]]
 
 
-def create_merged_stripe(files, used_idxs, s3_file_name, n_x, y):
-    with tracing.start_span('stripe loading'):
+def create_merged_stripe(files, used_idxs, s3_file_name, n_x, y, trace_span):
+    with tracing.start_span('parallel stripe loading', parent=trace_span):
         with concurrent.futures.ThreadPoolExecutor(10) as executor:
             contents = list(executor.map(partial(load_stripe, used_idxs, y, n_x), files))
 
-    with tracing.start_span('stripe saving'):
+    with tracing.start_span('merged stripe save', parent=trace_span):
         d = numpy.concatenate(contents, axis=1).tobytes()
         s3_put(f"{y}/{s3_file_name}", d)
 
@@ -60,9 +60,11 @@ def merge():
             continue
 
         # Merge in smaller batches (10 <= batch_size <= 50) to more quickly reduce S3 load per query.
-        max_batch_size = min(max(ceil(len(proj_files) / 4), 10), 50)
+        batch_size = min(ceil(len(proj_files) / 4), 50)
+        if len(proj_files) < 40:
+            batch_size = len(proj_files)
 
-        for files in chunk(proj_files, max_batch_size):
+        for files in chunk(proj_files, batch_size):
             # This next part is all about figuring out what items are still used in
             # each file so that the merge process can effectively garbage collect
             # unused data.
@@ -111,13 +113,15 @@ def merge():
 
                 with concurrent.futures.ThreadPoolExecutor(10) as executor:
                     futures = concurrent.futures.wait([
-                        executor.submit(create_merged_stripe, files, used_idxs, s3_file_name, n_x, y)
+                        executor.submit(create_merged_stripe, files, used_idxs, s3_file_name, n_x, y, span)
                         for y in range(n_y)
                     ])
                     for fut in futures.done:
                         if fut.exception() is not None:
                             logger.error("Exception merging: %s", fut.exception())
                             commit_merged = False
+
+                span.set_attribute("commit", commit_merged)
 
             if commit_merged:
                 for band, offset in new_offsets.items():
