@@ -8,6 +8,7 @@ from typing import List, Optional
 
 import datetime
 import numpy
+import statistics
 
 
 Base = declarative_base()
@@ -230,17 +231,17 @@ class DataPointSet(object):
         return max(self.values)
 
     def median(self) -> float:
-        return float(numpy.median(self.values))
+        return statistics.median(self.values)
 
     def median_confidence(self) -> float:
         vals = numpy.array(self.values)
-        n_within_stddev = (abs(vals - numpy.median(vals)) < numpy.std(vals)).sum()
+        n_within_stddev = (abs(vals - self.median()) < numpy.std(vals)).sum()
         return n_within_stddev / len(vals)
 
     def mean(self) -> float:
-        return float(numpy.mean(self.values))
+        return statistics.mean(self.values)
 
     def mean_confidence(self) -> float:
         vals = numpy.array(self.values)
-        n_within_stddev = (abs(vals - numpy.mean(vals)) < numpy.std(vals)).sum()
+        n_within_stddev = (abs(vals - self.mean()) < numpy.std(vals)).sum()
         return n_within_stddev / len(vals)
