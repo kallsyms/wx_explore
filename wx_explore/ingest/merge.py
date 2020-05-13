@@ -1,3 +1,4 @@
+from datetime import datetime
 from functools import partial
 from math import ceil
 import collections
@@ -44,7 +45,7 @@ def merge():
     Merge all (small) files into larger files to reduce the number of S3 requests each query needs to do.
     """
     all_files = FileMeta.query.filter(
-        FileMeta.file_name.in_(FileBandMeta.query.with_entities(FileBandMeta.file_name)),
+        FileMeta.file_name.in_(FileBandMeta.query.filter(FileBandMeta.valid_time > datetime.utcnow()).with_entities(FileBandMeta.file_name)),
     ).order_by(
         FileMeta.loc_size.asc(),
     ).all()
@@ -78,6 +79,11 @@ def merge():
 
             for f in files:
                 for band in f.bands:
+                    # Don't bother merging old data. Prevents racing with the cleaner,
+                    # and probably won't be queried anyways.
+                    if band.valid_time < datetime.utcnow():
+                        continue
+
                     new_offsets[band] = offset
                     offset += 4 * band.vals_per_loc
 
@@ -97,7 +103,7 @@ def merge():
 
             n_y, n_x = proj.shape()
 
-            # If we fail to create any merged band, don't commit the changes to
+            # If we fail to create any merged stripe, don't commit the changes to
             # band offset/file name, but _do_ commit the FileMeta to the DB.
             # This way the normal cleaning process will remove any orphaned bands.
             commit_merged = True
