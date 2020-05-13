@@ -23,4 +23,4 @@ COPY data /opt/wx_explore/data
 
 EXPOSE 8080
 
-CMD ["gunicorn3", "-b:8080", "--workers=4", "wx_explore.web.app:app"]
+CMD ["gunicorn3", "-b:8080", "--preload", "--workers=4", "wx_explore.web.app:app"]

@@ -13,7 +13,5 @@ init_tracing('api')
 from wx_explore.web.api import api
 app.register_blueprint(api)
 
-@app.before_first_request
-def preload():
-    from wx_explore.common.location import preload_coordinate_lookup_meta
-    preload_coordinate_lookup_meta()
+from wx_explore.common.location import preload_coordinate_lookup_meta
+preload_coordinate_lookup_meta()
