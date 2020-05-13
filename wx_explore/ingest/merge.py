@@ -22,11 +22,15 @@ logger = logging.getLogger(__name__)
 
 
 def load_stripe(used_idxs, y, n_x, f):
-    datas = numpy.frombuffer(
-        s3_get(f"{y}/{f.file_name}").content,
-        dtype=numpy.float32,
-    ).reshape((n_x, f.loc_size//4))
+    stripe_req = s3_get(f"{y}/{f.file_name}")
 
+    if not stripe_req.ok:
+        raise Exception(f"Fetching {y}/{f.file_name} from S3 failed: {stripe_req}")
+
+    if len(stripe_req.content) != n_x * f.loc_size:
+        raise ValueError(f"Invalid file size in {y}/{f.file_name}. Expected {n_x*f.loc_size}, got {len(stripe_req.content)}")
+
+    datas = numpy.frombuffer(stripe_req.content, dtype=numpy.float32).reshape((n_x, f.loc_size//4))
     return datas[:, used_idxs[f]]
 
 
