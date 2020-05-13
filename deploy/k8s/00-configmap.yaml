@@ -8,3 +8,5 @@ data:
   INGEST_S3_REGION: us-east-1
   POSTGRES_DB: wx
   POSTGRES_HOST: db.nyc1.as65535.net
+  TRACE_EXPORTER: honeycomb
+  HONEYCOMB_DATASET: prod
