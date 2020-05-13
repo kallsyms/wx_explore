@@ -145,7 +145,6 @@ class Projection(Base):
     ll_hash = Column(BigInteger)
     lats = deferred(Column(JSONB))
     lons = deferred(Column(JSONB))
-    tree = deferred(Column(LargeBinary))
 
     def shape(self):
         return (self.n_y, self.n_x)

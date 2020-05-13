@@ -1,11 +1,9 @@
-from scipy.spatial import cKDTree
 from typing import List, Dict, Tuple
 import binascii
 import concurrent.futures
 import datetime
 import logging
 import numpy
-import pickle
 import pygrib
 import random
 
@@ -43,7 +41,6 @@ def get_or_create_projection(msg):
 
     if projection is None:
         logger.info("Creating new projection with params %s", msg.projparams)
-        tree = cKDTree(numpy.stack([lons.ravel(), lats.ravel()], axis=-1))
 
         projection = Projection(
             params=msg.projparams,
@@ -52,7 +49,6 @@ def get_or_create_projection(msg):
             ll_hash=ll_hash,
             lats=lats.tolist(),
             lons=lons.tolist(),
-            tree=pickle.dumps(tree),
         )
         db.session.add(projection)
         db.session.commit()

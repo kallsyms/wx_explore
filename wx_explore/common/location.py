@@ -1,10 +1,7 @@
-from scipy.spatial import cKDTree
+import math
 import numpy
-import pickle
 
-from wx_explore.common.models import (
-    Projection,
-)
+from wx_explore.common.models import Projection
 
 
 lut_meta = {}
@@ -13,9 +10,8 @@ lut_meta = {}
 def load_coordinate_lookup_meta(proj):
     lats = numpy.array(proj.lats)
     lons = numpy.array(proj.lons)
-    tree = pickle.loads(proj.tree)
 
-    return (lats, lons, tree)
+    return (lats, lons)
 
 
 def get_lookup_meta(proj):
@@ -32,18 +28,39 @@ def preload_coordinate_lookup_meta():
         get_lookup_meta(proj)
 
 
+def _dist(x, y, lat, lon, projlats, projlons):
+    return math.sqrt((lat - projlats[y][x])**2 + (lon - projlons[y][x])**2)
+
+
 def get_xy_for_coord(proj, coords):
     """
     Returns the x,y for a given (lat, lon) coordinate on the given projection
     """
-    projlats, projlons, tree = get_lookup_meta(proj)
-    projshape = proj.shape()
+    projlats, projlons = get_lookup_meta(proj)
 
     lat, lon = coords
-    if projlons.min() <= lon <= projlons.max() and projlats.min() <= lat <= projlats.max():
-        idx = tree.query([lon, lat])[1]
-        x = idx % projshape[1]
-        y = idx // projshape[1]
-        return (x, y)
 
-    return None
+    if not (projlons.min() <= lon <= projlons.max() and projlats.min() <= lat <= projlats.max()):
+        return None
+
+    x = len(projlons) // 2
+    y = len(projlats) // 2
+
+    # Dumb walk to figure out best x,y
+    # Easier on memory than keeping kdtrees and not that much slower since we don't hit this very often
+    while True:
+        best = (None, None, None)  # dist, dx, dy
+
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                dist = _dist(x + dx, y + dy, lat, lon, projlats, projlons)
+                if best[0] is None or dist < best[0]:
+                    best = (dist, dx, dy)
+
+        if best[1] == 0 and best[2] == 0:
+            break
+
+        x += best[1]
+        y += best[2]
+
+    return (x, y)
