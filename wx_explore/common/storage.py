@@ -5,6 +5,7 @@ import array
 import boto3
 import concurrent.futures
 import datetime
+import logging
 import requests
 import urllib.parse
 
@@ -16,6 +17,9 @@ from wx_explore.common.models import (
     FileBandMeta,
     DataPointSet,
 )
+
+
+logger = logging.getLogger(__name__)
 
 
 def get_s3_bucket(session=boto3):
@@ -50,11 +54,31 @@ def s3_path(path):
 
 
 def s3_get(path, **kwargs):
-    return requests.get(s3_path(path), auth=S3_AUTH, **kwargs)
+    for _ in range(3):
+        try:
+            resp = requests.get(s3_path(path), auth=S3_AUTH, **kwargs)
+            if resp.ok:
+                return resp
+        except Exception as e:
+            logger.warning("Exception getting from S3: %s", e)
+            continue
+        logger.warning("Unexpected response getting from S3: %s", resp)
+
+    raise Exception(f"Unable to get {path} from S3 - maximum retries exceeded")
 
 
 def s3_put(path, data, **kwargs):
-    return requests.put(s3_path(path), data=data, auth=S3_AUTH, **kwargs)
+    for _ in range(3):
+        try:
+            resp = requests.put(s3_path(path), data=data, auth=S3_AUTH, **kwargs)
+            if resp.ok:
+                return resp
+        except Exception as e:
+            logger.warning("Exception uploading to S3: %s", e)
+            continue
+        logger.warning("Unexpected response uploading to S3: %s", resp)
+
+    raise Exception(f"Unable to upload {path} to S3 - maximum retries exceeded")
 
 
 def load_file_chunk(fm, coords):

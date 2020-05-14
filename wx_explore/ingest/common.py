@@ -90,7 +90,7 @@ def create_files(proj_id: int, fields: Dict[Tuple[int, datetime.datetime, dateti
     combined = numpy.stack(vals, axis=-1)
     fm.loc_size = offset
 
-    logging.info("Creating file group %s", s3_file_name)
+    logger.info("Creating file group %s", s3_file_name)
 
     with concurrent.futures.ThreadPoolExecutor(32) as executor:
         futures = concurrent.futures.wait([

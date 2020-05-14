@@ -24,9 +24,6 @@ logger = logging.getLogger(__name__)
 def load_stripe(used_idxs, y, n_x, f):
     stripe_req = s3_get(f"{y}/{f.file_name}")
 
-    if not stripe_req.ok:
-        raise Exception(f"Fetching {y}/{f.file_name} from S3 failed: {stripe_req}")
-
     if len(stripe_req.content) != n_x * f.loc_size:
         raise ValueError(f"Invalid file size in {y}/{f.file_name}. Expected {n_x*f.loc_size}, got {len(stripe_req.content)}")
 
