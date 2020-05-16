@@ -35,7 +35,9 @@ def get_s3_bucket(session=boto3):
 S3_AUTH = AWSRequestsAuth(
     aws_access_key=Config.INGEST_S3_ACCESS_KEY,
     aws_secret_access_key=Config.INGEST_S3_SECRET_KEY,
-    aws_host=urllib.parse.urlsplit(Config.INGEST_S3_ENDPOINT).netloc,
+    aws_host=(
+        urllib.parse.urlsplit(Config.INGEST_S3_ENDPOINT).netloc if Config.INGEST_S3_ENDPOINT
+        else f"{Config.INGEST_S3_BUCKET}.s3.{Config.INGEST_S3_REGION}.amazonaws.com"),
     aws_region=Config.INGEST_S3_REGION,
     aws_service='s3',
 )
