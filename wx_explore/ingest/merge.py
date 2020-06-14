@@ -8,6 +8,7 @@ import logging
 import numpy
 
 from wx_explore.common import tracing
+from wx_explore.common.location import clear_proj_cache
 from wx_explore.common.logging import init_sentry
 from wx_explore.common.models import (
     FileMeta,
@@ -138,6 +139,9 @@ def merge():
                 logger.info("Updated file band meta")
 
             db.session.commit()
+
+        # We know we won't need this projection again, so clear it
+        clear_proj_cache()
 
 
 if __name__ == "__main__":

@@ -2,6 +2,7 @@ import math
 import numpy
 
 from wx_explore.common.models import Projection
+from wx_explore.web.core import db
 
 
 lut_meta = {}
@@ -28,6 +29,11 @@ def preload_coordinate_lookup_meta():
         get_lookup_meta(proj)
 
 
+def clear_proj_cache():
+    for k in lut_meta:
+        del lut_meta[k]
+
+
 def _dist(x, y, lat, lon, projlats, projlons):
     return math.sqrt((lat - projlats[y][x])**2 + (lon - projlons[y][x])**2)
 
@@ -43,8 +49,8 @@ def get_xy_for_coord(proj, coords):
     if not (projlons.min() <= lon <= projlons.max() and projlats.min() <= lat <= projlats.max()):
         return None
 
-    x = len(projlons) // 2
-    y = len(projlats) // 2
+    x = proj.n_x // 2
+    y = proj.n_y // 2
 
     # Dumb walk to figure out best x,y
     # Easier on memory than keeping kdtrees and not that much slower since we don't hit this very often
@@ -60,7 +66,7 @@ def get_xy_for_coord(proj, coords):
         if best[1] == 0 and best[2] == 0:
             break
 
-        x += best[1]
-        y += best[2]
+        x = (x + best[1]) % proj.n_x
+        y = (y + best[2]) % proj.n_y
 
     return (x, y)

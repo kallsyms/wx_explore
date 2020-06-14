@@ -27,6 +27,10 @@ spec:
             - name: http
               containerPort: 8080
               protocol: TCP
+          resources:
+            requests:
+              cpu: 500m
+              memory: "1G"
 
 ---
 apiVersion: v1

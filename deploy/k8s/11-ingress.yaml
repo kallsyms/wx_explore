@@ -4,7 +4,7 @@ metadata:
   name: wx-explore-api
 spec:
   rules:
-  - host: cloud.vortexweather.io
+  - host: api.vortexweather.io
     http:
       paths:
       - path: /

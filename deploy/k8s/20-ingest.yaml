@@ -50,6 +50,10 @@ spec:
                   name: wx-explore
               - secretRef:
                   name: wx-explore
+            resources:
+              requests:
+                cpu: 2000m
+                memory: "2G"
 
 ---
 apiVersion: batch/v1beta1
@@ -78,6 +82,10 @@ spec:
                   name: wx-explore
               - secretRef:
                   name: wx-explore
+            resources:
+              requests:
+                cpu: 250m
+                memory: "512M"
 
 ---
 apiVersion: batch/v1beta1
