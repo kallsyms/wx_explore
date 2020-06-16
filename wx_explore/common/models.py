@@ -1,6 +1,16 @@
-from geoalchemy2 import Geography
+from geoalchemy2 import Geography, Geometry
+from pytz import timezone
 from shapely import wkb
-from sqlalchemy import Column, Integer, BigInteger, String, Boolean, DateTime, ForeignKey, LargeBinary, UniqueConstraint
+from sqlalchemy import (
+    Column,
+    Integer, BigInteger,
+    String,
+    Boolean,
+    DateTime,
+    LargeBinary,
+    ForeignKey,
+    UniqueConstraint,
+)
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import deferred, relationship
 from sqlalchemy.ext.declarative import declarative_base
@@ -130,6 +140,19 @@ class Location(Base):
 
     def __repr__(self):
         return f"<Location id={self.id} name='{self.name}'>"
+
+
+class Timezone(Base):
+    """
+    A timezone name and associated geometry.
+    """
+    __tablename__ = "timezone"
+
+    name = Column(String(512), primary_key=True)
+    geom = deferred(Column(Geometry('POLYGON')))
+
+    def utc_offset(self, dt):
+        return timezone(self.name).utcoffset(dt)
 
 
 class Projection(Base):

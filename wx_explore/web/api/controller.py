@@ -18,6 +18,7 @@ from wx_explore.common.models import (
     SourceField,
     Location,
     Metric,
+    Timezone,
 )
 from wx_explore.common.storage import load_data_points
 from wx_explore.common.utils import datetime2unix
@@ -108,6 +109,26 @@ def get_location_from_coords():
     location = Location.query.order_by(Location.location.distance_centroid('POINT({} {})'.format(lon, lat))).first()
 
     return jsonify(location.serialize())
+
+
+@api.route('/timezone/by_coords')
+def get_tz_for_coords():
+    """
+    Gets the timezone that the given lat, lon is in.
+    """
+
+    lat = float(request.args['lat'])
+    lon = float(request.args['lon'])
+
+    if lat > 90 or lat < -90 or lon > 180 or lon < -180:
+        abort(400)
+
+    tz = Timezone.query.filter(Timezone.geom.ST_Contains('POINT({} {})'.format(lon, lat))).first_or_404()
+
+    return jsonify({
+        "name": tz.name,
+        "utc_offset": tz.utc_offset(datetime.utcnow()).seconds,
+    })
 
 
 @api.route('/wx')

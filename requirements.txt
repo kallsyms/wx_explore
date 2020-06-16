@@ -17,6 +17,7 @@ arm_pyart
 boto3
 sentry-sdk[flask]==0.14.2
 aws-requests-auth==0.4.2
+ogr
 pytz
 opentelemetry-api==0.6b0
 opentelemetry-auto-instrumentation==0.6b0

@@ -3,6 +3,7 @@ from wx_explore.common.models import (
     Source,
     SourceField,
     Location,
+    Timezone,
 )
 
 from wx_explore.common import metrics
@@ -207,3 +208,36 @@ with open("data/cities/worldcities.csv", encoding="utf8") as f:
 
 db.session.add_all(locs)
 db.session.commit()
+
+
+###
+# Timezones
+###
+import os
+import osgeo.ogr
+import requests
+import shutil
+import tempfile
+import zipfile
+
+with tempfile.TemporaryDirectory() as tmpdir:
+    with tempfile.TemporaryFile() as tmpf:
+        with requests.get('https://github.com/evansiroky/timezone-boundary-builder/releases/download/2020a/timezones-with-oceans.shapefile.zip', stream=True) as resp:
+            shutil.copyfileobj(resp.raw, tmpf)
+
+        with zipfile.ZipFile(tmpf) as z:
+            z.extractall(tmpdir)
+
+    shapefile = osgeo.ogr.Open(os.path.join(tmpdir, 'dist'))
+    layer = shapefile.GetLayer(0)
+
+    tzs = []
+
+    for feature in (layer.GetFeature(i) for i in range(layer.GetFeatureCount())):
+        tzs.append(Timezone(
+            name=feature.GetField("tzid"),
+            geom=feature.GetGeometryRef().ExportToWkt(),
+        ))
+
+    db.session.add_all(tzs)
+    db.session.commit()
