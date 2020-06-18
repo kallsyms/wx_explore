@@ -9,13 +9,14 @@ PROJECT="wx_explore"
 FUNCTIONS_DIR="${PROJECT}/cloud/functions"
 OUT_DIR="${REPO_DIR}/deploy"
 
-pushd "${TMP_DIR}"
-
 # main code and requirements
-cp -r "${REPO_DIR}/${PROJECT}" .
-cp -r "${REPO_DIR}/requirements.functions.txt" "requirements.txt"
+pushd "${REPO_DIR}"
+shopt -s globstar
+cp --parents -r "${PROJECT}"/**/*.py "${TMP_DIR}"
+cp "requirements.functions.txt" "${TMP_DIR}/requirements.txt"
+popd
 
-# TODO: cleanup dotfiles
+pushd "${TMP_DIR}"
 
 # Ubuntu requires the --system because dumb
 pip3 install -r requirements.txt --system --target .
