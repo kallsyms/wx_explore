@@ -111,6 +111,12 @@ def get_location_from_coords():
     return jsonify(location.serialize())
 
 
+@api.route('/location/<int:loc_id>')
+def get_location(loc_id):
+    location = Location.query.get_or_404(loc_id)
+    return jsonify(location.serialize())
+
+
 @api.route('/timezone/by_coords')
 def get_tz_for_coords():
     """
