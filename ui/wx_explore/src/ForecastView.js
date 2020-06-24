@@ -26,21 +26,25 @@ function capitalize(s) {
 }
 
 export default class ForecastView extends React.Component {
-  state = {
-    metrics: null,
-    sources: null,
-    source_fields: null,
-    summary: null,
-    wx: null,
-  };
+  constructor(props) {
+    super(props);
+    this.state = {
+      location: null,
+      metrics: null,
+      sources: null,
+      source_fields: null,
+      summary: null,
+      wx: null,
+    };
+  }
 
   getWx() {
     let t = Math.round((new Date()).getTime() / 1000);
 
     Api.get("/wx", {
       params: {
-        lat: this.props.location.lat,
-        lon: this.props.location.lon,
+        lat: this.state.location.lat,
+        lon: this.state.location.lon,
         start: t,
         end: t + (3 * 24 * 60 * 60), // 3 days out
       },
@@ -48,8 +52,8 @@ export default class ForecastView extends React.Component {
 
     Api.get("/wx/summarize", {
       params: {
-        lat: this.props.location.lat,
-        lon: this.props.location.lon,
+        lat: this.state.location.lat,
+        lon: this.state.location.lon,
         days: 1,
       },
     }).then(({data}) => this.setState({summary: data}));
@@ -75,22 +79,37 @@ export default class ForecastView extends React.Component {
         }
         this.setState({metrics});
     });
-
-    if (this.props.location === undefined || this.props.location == null) {
-      return;
-    }
     
-    this.getWx();
+    if (this.props.match.params.loc_id !== undefined) {
+      Api.get(`/location/${this.props.match.params.loc_id}`).then(({location}) => {
+        this.setState({location});
+      });
+    } else if (this.props.match.params.lat !== undefined && this.props.match.params.lon !== undefined) {
+      Api.get("/location/by_coords", {
+        params: {
+          lat: this.props.match.params.lat,
+          lon: this.props.match.params.lon,
+        },
+      }).then(({data}) => {
+        this.setState({
+          location: {
+            lat: this.props.match.params.lat,
+            lon: this.props.match.params.lon,
+            name: `Near ${data.name}`,
+          }
+        });
+      });
+    }
   }
 
-  componentDidUpdate(prevProps) {
+  componentDidUpdate(prevProps, prevState) {
     // only attempt to fetch when we have a location...
-    if (this.props.location === undefined || this.props.location == null) {
+    if (this.state.location == null) {
       return;
     }
     
     // ... or when location changed
-    if (prevProps.location != null && this.props.location.id === prevProps.location.id) {
+    if (prevState.location == this.state.location) {
       return;
     }
 
@@ -119,7 +138,7 @@ export default class ForecastView extends React.Component {
           metrics[metric.id][source.id][data_point.run_time] = [];
         }
 
-        const [val, _] = this.props.converter.convert(data_point.value, metric.units);
+        const [val, ] = this.props.converter.convert(data_point.value, metric.units);
         metrics[metric.id][source.id][data_point.run_time].push({x: new Date(ts * 1000), y: val});
       }
     }
@@ -194,7 +213,7 @@ export default class ForecastView extends React.Component {
     return (
       <Row className="justify-content-md-center">
         <Col md={2}>
-          <i style={{fontSize: "7em"}} class={"wi " + cloudCoverIcon}></i>
+          <i style={{fontSize: "7em"}} className={"wi " + cloudCoverIcon}></i>
         </Col>
         <Col md={3}>
           <h4>{this.props.converter.convert(summary.temps[0].temperature, 'K')} {capitalize(summary.cloud_cover[0].cover)}</h4>
@@ -289,7 +308,7 @@ export default class ForecastView extends React.Component {
       <div>
         <Row className="justify-content-md-center">
           <Col md="auto">
-            <h2>{this.props.location.name}</h2>
+            <h2>{this.state.location.name}</h2>
           </Col>
         </Row>
         <Row className="justify-content-md-center">
