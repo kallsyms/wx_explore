@@ -275,6 +275,10 @@ export default class ForecastView extends React.Component {
             time: {
               unit: 'hour',
             },
+            ticks: {
+              min: moment(),
+              max: moment().add(3, 'days'),
+            },
           }],
         },
         legend: {
@@ -316,7 +320,6 @@ export default class ForecastView extends React.Component {
             <p style={{fontSize: "1.5em"}}>{this.summarize(0)}</p>
           </Col>
         </Row>
-        {this.coreMetricsBox(0)}
         <hr/>
         {charts}
       </div>
