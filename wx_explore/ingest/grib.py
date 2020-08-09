@@ -5,7 +5,6 @@ import numpy
 import pygrib
 
 from wx_explore.common import tracing, storage
-from wx_explore.common.config import Config
 from wx_explore.common.models import (
     Metric,
     SourceField,

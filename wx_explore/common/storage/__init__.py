@@ -1,20 +1,47 @@
 from typing import Tuple, Optional, Iterable, Dict, List
 
 import datetime
+import numpy
 
 from wx_explore.common import tracing
 from wx_explore.common.config import Config
 from wx_explore.common.location import get_xy_for_coord
 from wx_explore.common.models import (
     SourceField,
+    Projection,
     DataPointSet,
 )
 
-from .s3 import S3Backend
-from .azure_tables import AzureTableBackend
+
+class DataProvider(object):
+    def get_fields(
+            self,
+            proj_id: int,
+            loc: Tuple[float, float],
+            valid_source_fields: List[SourceField],
+            start: datetime.datetime,
+            end: datetime.datetime
+    ) -> List[DataPointSet]:
+        raise NotImplementedError()
+
+    def put_fields(
+            self,
+            proj: Projection,
+            fields: Dict[Tuple[int, datetime.datetime, datetime.datetime], List[numpy.array]]
+    ):
+        raise NotImplementedError()
+
+    def clean(self, oldest_time: datetime.datetime):
+        raise NotImplementedError()
+
+    def merge(self):
+        raise NotImplementedError()
 
 
 def get_provider():
+    from .s3 import S3Backend
+    from .azure_tables import AzureTableBackend
+
     if Config.DATA_PROVIDER == "S3":
         return S3Backend(
             Config.INGEST_S3_ACCESS_KEY,

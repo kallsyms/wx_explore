@@ -15,20 +15,25 @@ import logging
 import numpy
 import zlib
 
+from . import DataProvider
 from wx_explore.common.models import (
     Projection,
     SourceField,
     DataPointSet,
 )
+from wx_explore.common.utils import chunk
 
 
-class AzureTableBackend(object):
+class AzureTableBackend(DataProvider):
     logger: logging.Logger
     account_name: str
     account_key: str
     table_name: str
 
     def __init__(self, account_name, account_key, table_name):
+        logging.getLogger('azure').setLevel(logging.WARNING)
+        logging.getLogger('urllib3').setLevel(logging.ERROR)
+
         self.logger = logging.getLogger(self.__class__.__name__)
         self.account_name = account_name
         self.account_key = account_key
@@ -79,7 +84,11 @@ class AzureTableBackend(object):
 
         return data_points
 
-    def put_fields(self, proj: Projection, fields: Dict[Tuple[int, datetime.datetime, datetime.datetime], List[numpy.array]]):
+    def put_fields(
+            self,
+            proj: Projection,
+            fields: Dict[Tuple[int, datetime.datetime, datetime.datetime], List[numpy.array]]
+    ):
         # fields is map of (field_id, valid_time, run_time) -> [msg, ...]
         with concurrent.futures.ThreadPoolExecutor() as ex:
             ex.map(lambda y: self._put_fields_worker(proj, fields, y), range(proj.n_y))
@@ -104,3 +113,25 @@ class AzureTableBackend(object):
                     'RowKey': row_key,
                     **row,
                 })
+
+    def clean(self, oldest_time: datetime.datetime):
+        earliest = oldest_time.replace(microsecond=0)
+
+        for proj in Projection.query.all():
+            with concurrent.futures.ThreadPoolExecutor(max_workers=16) as ex:
+                ex.map(lambda y: self._clean_worker(earliest, proj, y), range(proj.n_y))
+
+    def _clean_worker(self, earliest: datetime.datetime, proj: Projection, y: int):
+        svc = TableService(self.account_name, self.account_key)
+        to_delete = []
+
+        for row in svc.query_entities(self.table_name, f"PartitionKey eq '{proj.id}-{y}' and RowKey lt '{earliest.isoformat()}'", 'PartitionKey,RowKey'):
+            to_delete.append((row.PartitionKey, row.RowKey))
+
+        for batch_elems in chunk(to_delete, 100):
+            with svc.batch(self.table_name) as batch:
+                for entity in batch_elems:
+                    batch.delete_entity(*entity)
+
+    def merge(self):
+        pass

@@ -65,8 +65,6 @@ def ingest_from_queue():
 if __name__ == "__main__":
     init_sentry()
     logging.basicConfig(level=logging.INFO)
-    logging.getLogger('azure').setLevel(logging.WARNING)
-    logging.getLogger('urllib3').setLevel(logging.ERROR)
     init_tracing('queue_worker')
     with tracing.start_span('queue worker'):
         ingest_from_queue()
