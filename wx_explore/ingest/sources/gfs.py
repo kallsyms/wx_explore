@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 from datetime import datetime, timedelta
 from typing import Optional
+
+import argparse
 import logging
 
 from wx_explore.common.logging import init_sentry
@@ -33,12 +35,12 @@ class GFS(IngestSource):
 
         base_url = run_time.strftime("https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/gfs.%Y%m%d/%H/gfs.t%Hz.pgrb2.0p25.f{}")
 
-        urls = [base_url.format(str(x).zfill(3)) for x in times]
-
         q = get_queue()
-        for url in urls:
+        for hr in times:
+            url = base_url.format(str(hr).zfill(3))
             q.put({
                 "source": "gfs",
+                "valid_time": datetime2unix(run_time + timedelta(hours=hr)),
                 "run_time": datetime2unix(run_time),
                 "url": url,
                 "idx_url": url+".idx",
@@ -48,4 +50,12 @@ class GFS(IngestSource):
 if __name__ == "__main__":
     init_sentry()
     logging.basicConfig(level=logging.INFO)
-    GFS.queue()
+
+    parser = argparse.ArgumentParser(description='Ingest GFS')
+    parser.add_argument('--offset', type=int, default=0, help='Run offset to ingest')
+    args = parser.parse_args()
+
+    run_time = datetime.utcnow()
+    run_time = run_time.replace(hour=(run_time.hour//6)*6, minute=0, second=0, microsecond=0)
+    run_time -= timedelta(hours=6*args.offset)
+    GFS.queue(run_time=run_time)
