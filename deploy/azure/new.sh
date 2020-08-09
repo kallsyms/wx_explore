@@ -6,7 +6,6 @@ REPO_DIR=$(git -C "${SCRIPT_DIR}" rev-parse --show-toplevel)
 TMP_DIR=$(mktemp -d)
 
 FUNCTIONS_DIR="${SCRIPT_DIR}/functions"
-OUT_DIR="${REPO_DIR}/deploy"
 
 pushd "${TMP_DIR}"
 
@@ -30,15 +29,14 @@ for func in ${FUNCTIONS_DIR}/*; do
     find . -name .mypy_cache -exec rm -rf {} +
     find . -name \*.pyc -delete
 
+    # Spent way too long messing around with stuff to get azure functions building again.
+    # This could probably be simplified (maybe even to just a normal publish --build-native-deps)
+    # but ¯\_(ツ)_/¯
     docker run -it -v "$(pwd):/host" mcr.microsoft.com/azure-functions/python:3.0.14120-python3.6-buildenv /bin/bash -c 'cd /host; pip3 install --target /host/.python_packages/lib/site-packages -r requirements.txt'
 
-    func azure functionapp publish vtxwx-worker --no-build
-
-    #mv tmp.*.zip "${OUT_DIR}/azure-$(basename $func)-$(date '+%Y-%m-%d-%H-%M-%S').zip"
-
-    #rm -rf "${fn}"
+    func azure functionapp publish "vtxwx-${fn}" --no-build
 done
 
 popd
 
-rm -rf "${TMP_DIR}"
+sudo rm -rf "${TMP_DIR}"
