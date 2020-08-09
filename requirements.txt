@@ -1,7 +1,7 @@
 flask
 flask_sqlalchemy
 flask_cors
-psycopg2
+psycopg2-binary
 pq
 geoalchemy2
 numpy
@@ -9,16 +9,15 @@ shapely
 pyproj
 https://github.com/kallsyms/pygrib/releases/download/v2.0.4-wheel/pygrib-2.0.4-cp36-cp36m-manylinux1_x86_64.whl
 scipy
-gdal
 urllib3>=1.25.4
 requests
 pillow
-arm_pyart
 boto3
 sentry-sdk[flask]==0.14.2
 aws-requests-auth==0.4.2
 ogr
 pytz
+azure-cosmosdb-table==1.0.6
 opentelemetry-api==0.6b0
 opentelemetry-auto-instrumentation==0.6b0
 opentelemetry-ext-dbapi==0.6b0

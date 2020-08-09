@@ -42,6 +42,7 @@ services:
             - POSTGRES_PASS=postgres
             - POSTGRES_DB=postgres
             - POSTGRES_HOST=db
+            - DATA_PROVIDER=S3
             - INGEST_S3_ACCESS_KEY=miniominio
             - INGEST_S3_SECRET_KEY=miniominio
             - INGEST_S3_REGION=us-east-1

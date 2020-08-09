@@ -4,13 +4,13 @@ from opentelemetry.ext.jaeger import JaegerSpanExporter
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchExportSpanProcessor
 
-from wx_explore.common.config import Config
-
 
 tracer = None
 
 
 def init_tracing(service_name):
+    from wx_explore.common.config import Config
+
     if Config.TRACE_EXPORTER is None:
         return
     elif Config.TRACE_EXPORTER == 'jaeger':

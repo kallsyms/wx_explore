@@ -11,11 +11,20 @@ class Config():
     POSTGRES_DB   = os.environ['POSTGRES_DB']
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
-    INGEST_S3_ACCESS_KEY = os.environ['INGEST_S3_ACCESS_KEY']
-    INGEST_S3_SECRET_KEY = os.environ['INGEST_S3_SECRET_KEY']
-    INGEST_S3_REGION     = os.environ['INGEST_S3_REGION']
-    INGEST_S3_BUCKET     = os.environ['INGEST_S3_BUCKET']
-    INGEST_S3_ENDPOINT   = os.environ.get('INGEST_S3_ENDPOINT')
+    DATA_PROVIDER = os.environ['DATA_PROVIDER']
+
+    if DATA_PROVIDER == "S3":
+        INGEST_S3_ACCESS_KEY = os.environ['INGEST_S3_ACCESS_KEY']
+        INGEST_S3_SECRET_KEY = os.environ['INGEST_S3_SECRET_KEY']
+        INGEST_S3_REGION     = os.environ['INGEST_S3_REGION']
+        INGEST_S3_BUCKET     = os.environ['INGEST_S3_BUCKET']
+        INGEST_S3_ENDPOINT   = os.environ.get('INGEST_S3_ENDPOINT')
+    elif DATA_PROVIDER == "AZURE_TABLES":
+        INGEST_AZURE_TABLE_ACCOUNT_NAME = os.environ['INGEST_AZURE_TABLE_ACCOUNT_NAME']
+        INGEST_AZURE_TABLE_ACCOUNT_KEY  = os.environ['INGEST_AZURE_TABLE_ACCOUNT_KEY']
+        INGEST_AZURE_TABLE_NAME         = os.environ['INGEST_AZURE_TABLE_NAME']
+    else:
+        raise ValueError(f"Unsupported DATA_PROVIDER {DATA_PROVIDER}")
 
     SENTRY_ENDPOINT = os.environ.get('SENTRY_ENDPOINT')
 
