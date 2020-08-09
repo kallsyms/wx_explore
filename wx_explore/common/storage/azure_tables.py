@@ -69,7 +69,11 @@ class AzureTableBackend(DataProvider):
             valid_time, run_time = map(dateutil.parser.parse, row.RowKey.split(','))
 
             for sf in valid_source_fields:
-                raw = zlib.decompress(row[f"f{sf.id}"].value)
+                key = f"f{sf.id}"
+                if key not in row or row[key] is None:
+                    continue
+
+                raw = zlib.decompress(row[key].value)
                 val = array.array("f", raw).tolist()[x]
 
                 data_point = DataPointSet(
