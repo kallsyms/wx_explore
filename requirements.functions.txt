@@ -1,7 +1,0 @@
-geoalchemy2
-sqlalchemy
-requests
-pillow
-numpy
-https://github.com/kallsyms/pygrib/releases/download/v2.0.4-wheel/pygrib-2.0.4-cp36-cp36m-manylinux1_x86_64.whl
-matplotlib

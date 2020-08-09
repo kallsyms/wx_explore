@@ -3,3 +3,4 @@ virtualenv/
 .python_packages
 tmp/
 .env*
+deploy/azure/local.settings.json

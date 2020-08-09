@@ -11,7 +11,7 @@ from wx_explore.common.models import (
     SourceField,
 )
 from wx_explore.common.utils import datetime2unix
-from wx_explore.ingest.common import get_queue, get_or_create_projection, create_files
+from wx_explore.ingest.common import get_queue, get_or_create_projection
 from wx_explore.ingest.grib import get_end_valid_time
 from wx_explore.ingest.sources.source import IngestSource
 from wx_explore.web.core import db
@@ -79,7 +79,7 @@ class HRRR(IngestSource):
 
         if projection is not None:
             return {
-                projection.id: to_insert,
+                projection: to_insert,
             }
 
         else:

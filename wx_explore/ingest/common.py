@@ -1,19 +1,10 @@
-from typing import List, Dict, Tuple
 import binascii
-import concurrent.futures
-import datetime
 import logging
 import numpy
 import pygrib
-import random
 
-from wx_explore.common.models import (
-    Projection,
-    FileMeta,
-    FileBandMeta,
-)
+from wx_explore.common.models import Projection
 from wx_explore.common.queue import pq
-from wx_explore.common.storage import s3_put
 from wx_explore.ingest.sources.source import IngestSource
 from wx_explore.web.core import db
 
@@ -54,55 +45,6 @@ def get_or_create_projection(msg):
         db.session.commit()
 
     return projection
-
-
-def _upload(s3_file_name, y, d):
-    s3_put(f"{y}/{s3_file_name}", d.tobytes())
-
-
-def create_files(proj_id: int, fields: Dict[Tuple[int, datetime.datetime, datetime.datetime], List[numpy.array]]):
-    metas = []
-    vals = []
-
-    s3_file_name = ''.join(random.choices('0123456789abcdef', k=32))
-
-    fm = FileMeta(
-        file_name=s3_file_name,
-        projection_id=proj_id,
-    )
-    db.session.add(fm)
-
-    offset = 0
-    for i, ((field_id, valid_time, run_time), msgs) in enumerate(fields.items()):
-        metas.append(FileBandMeta(
-            file_name=s3_file_name,
-            source_field_id=field_id,
-            valid_time=valid_time,
-            run_time=run_time,
-            offset=offset,
-            vals_per_loc=len(msgs),
-        ))
-
-        for msg in msgs:
-            vals.append(msg.astype(numpy.float32))
-            offset += 4  # sizeof(float32)
-
-    combined = numpy.stack(vals, axis=-1)
-    fm.loc_size = offset
-
-    logger.info("Creating file group %s", s3_file_name)
-
-    with concurrent.futures.ThreadPoolExecutor(32) as executor:
-        futures = concurrent.futures.wait([
-            executor.submit(_upload, s3_file_name, y, vals)
-            for y, vals in enumerate(combined)
-        ])
-        for fut in futures.done:
-            if fut.exception() is not None:
-                logger.warning("Exception creating files: %s", fut.exception())
-
-    db.session.add_all(metas)
-    db.session.commit()
 
 
 def get_source_modules():

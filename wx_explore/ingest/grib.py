@@ -4,14 +4,13 @@ import logging
 import numpy
 import pygrib
 
-from wx_explore.common import tracing
+from wx_explore.common import tracing, storage
 from wx_explore.common.models import (
     Metric,
     SourceField,
 )
-from wx_explore.common.tracing import init_tracing
 from wx_explore.common.utils import get_url
-from wx_explore.ingest.common import get_or_create_projection, create_files, get_source_module
+from wx_explore.ingest.common import get_or_create_projection, get_source_module
 from wx_explore.web.core import db
 
 logger = logging.getLogger(__name__)
@@ -114,7 +113,7 @@ def ingest_grib_file(file_path, source):
     grib = pygrib.open(file_path)
 
     # Keeps all data points that we'll be inserting at the end.
-    # Map of proj_id to map of {(field_id, valid_time, run_time) -> [msg, ...]}
+    # Map of projection to map of {(field_id, valid_time, run_time) -> [msg, ...]}
     data_by_projection = collections.defaultdict(lambda: collections.defaultdict(list))
 
     for field in SourceField.query.filter(SourceField.source_id == source.id, SourceField.metric.has(Metric.intermediate == False)).all():
@@ -134,17 +133,17 @@ def ingest_grib_file(file_path, source):
                     db.session.commit()
 
                 valid_date = get_end_valid_time(msg)
-                data_by_projection[field.projection.id][(field.id, valid_date, msg.analDate)].append(msg.values)
+                data_by_projection[field.projection][(field.id, valid_date, msg.analDate)].append(msg.values)
 
     with tracing.start_span('generate derived'):
         logger.info("Generating derived fields")
-        for proj_id, fields in get_source_module(source.short_name).generate_derived(grib).items():
+        for proj, fields in get_source_module(source.short_name).generate_derived(grib).items():
             for k, v in fields.items():
-                data_by_projection[proj_id][k].extend(v)
+                data_by_projection[proj][k].extend(v)
 
     with tracing.start_span('save denormalized'):
         logger.info("Saving denormalized location/time data for all messages")
-        for proj_id, fields in data_by_projection.items():
-            create_files(proj_id, fields)
+        for proj, fields in data_by_projection.items():
+            storage.get_provider().put_fields(proj, fields)
 
     logger.info("Done saving denormalized data")
