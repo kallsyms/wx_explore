@@ -10,3 +10,5 @@ data:
   DATA_PROVIDER: AZURE_TABLES
   INGEST_AZURE_TABLE_ACCOUNT_NAME: denormalized
   INGEST_AZURE_TABLE_NAME: denormalized
+  #INGEST_S3_BUCKET: wx-denormalized
+  #INGEST_S3_REGION: us-east-1
