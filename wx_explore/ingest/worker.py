@@ -26,8 +26,8 @@ def ingest_from_queue():
 
         ingest_req = ingest_req.data
 
-        # Expire out anything whose run time is very old (probably a bad request/URL)
-        if datetime.utcfromtimestamp(ingest_req['run_time']) < datetime.utcnow() - timedelta(hours=12):
+        # Expire out anything whose valid time is very old (probably a bad request/URL)
+        if datetime.utcfromtimestamp(ingest_req['valid_time']) < datetime.utcnow() - timedelta(hours=12):
             logger.info("Expiring old request %s", ingest_req)
             continue
 
@@ -59,7 +59,7 @@ def ingest_from_queue():
                 raise
             except Exception:
                 logger.exception("Exception while ingesting %s. Will retry", ingest_req)
-                q.put(ingest_req, '5m')
+                q.put(ingest_req, '4m')
 
 
 if __name__ == "__main__":
