@@ -3,6 +3,7 @@ from flask import Blueprint, abort, jsonify, request
 from sqlalchemy import or_
 
 import collections
+import pytz
 import sqlalchemy
 
 from wx_explore.analysis.summarize import (
@@ -156,14 +157,14 @@ def wx_for_location():
     else:
         metric_ids = Metric.query.with_entities(Metric.id)
 
-    now = datetime.utcnow()
+    now = datetime.now(pytz.UTC)
     start = request.args.get('start', type=int)
     end = request.args.get('end', type=int)
 
     if start is None:
         start = now - timedelta(hours=1)
     else:
-        start = datetime.utcfromtimestamp(start)
+        start = datetime.utcfromtimestamp(start).replace(tzinfo=pytz.UTC)
 
         if not app.debug:
             if start < now - timedelta(days=1):
@@ -172,7 +173,7 @@ def wx_for_location():
     if end is None:
         end = now + timedelta(hours=12)
     else:
-        end = datetime.utcfromtimestamp(end)
+        end = datetime.utcfromtimestamp(end).replace(tzinfo=pytz.UTC)
 
         if not app.debug:
             if end > now + timedelta(days=7):
@@ -226,11 +227,11 @@ def summarize():
         abort(400)
 
     # TODO: This should be done relative to the location's local TZ
-    now = datetime.utcnow()
+    now = datetime.now(pytz.UTC)
     if start is None:
         start = now
     else:
-        start = datetime.utcfromtimestamp(start)
+        start = datetime.utcfromtimestamp(start).replace(tzinfo=pytz.UTC)
 
         if not app.debug:
             if start < now - timedelta(days=1):
