@@ -53,12 +53,37 @@ class AzureTableBackend(DataProvider):
             start: datetime.datetime,
             end: datetime.datetime
     ) -> List[DataPointSet]:
+        start = start.replace(microsecond=0)
+        end = end.replace(microsecond=0)
+
+        times = [start]
+        while times[-1] + datetime.timedelta(hours=1) < end:
+            times.append(times[-1] + datetime.timedelta(hours=1))
+        times.append(end)
+
+        with concurrent.futures.ThreadPoolExecutor(max_workers=len(times)-1) as ex:
+            return sum(
+                ex.map(
+                    lambda time_range: self._get_fields_worker(proj_id, loc, valid_source_fields, *time_range),
+                    zip(times[:-1], times[1:]),
+                ),
+                [],
+            )
+
+    def _get_fields_worker(
+            self,
+            proj_id: int,
+            loc: Tuple[float, float],
+            valid_source_fields: List[SourceField],
+            start: datetime.datetime,
+            end: datetime.datetime
+    ) -> List[DataPointSet]:
         x, y = loc
         partition = f"{proj_id}-{y}"
 
         # This actually (ab)uses lexicographical string compares on the rowkey
-        row_start = start.replace(microsecond=0).isoformat()
-        row_end = end.replace(microsecond=0).isoformat()
+        row_start = start.isoformat()
+        row_end = end.isoformat()
 
         az_filter = f"PartitionKey eq '{partition}' and RowKey gt '{row_start}' and RowKey lt '{row_end}'"
         select = ['PartitionKey', 'RowKey', *(f"f{sf.id}" for sf in valid_source_fields)]

@@ -1,5 +1,6 @@
 from typing import Tuple, Optional, Iterable, Dict, List
 
+import concurrent.futures
 import datetime
 import numpy
 
@@ -89,8 +90,13 @@ def load_data_points(
 
         valid_source_fields.append(sf)
 
-    data_points: List[DataPointSet] = []
-    for proj_id, loc in locs.items():
-        data_points.extend(get_provider().get_fields(proj_id, loc, valid_source_fields, start, end))
+    with concurrent.futures.ThreadPoolExecutor(max_workers=len(locs)) as ex:
+        data_points: List[DataPointSet] = sum(
+            ex.map(
+                lambda proj_loc: get_provider().get_fields(*proj_loc, valid_source_fields, start, end),
+                locs.items()
+            ),
+            [],
+        )
 
     return data_points
