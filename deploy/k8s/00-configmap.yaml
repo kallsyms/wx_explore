@@ -3,9 +3,10 @@ kind: ConfigMap
 metadata:
   name: wx-explore
 data:
-  INGEST_S3_BUCKET: wx-denormalized
-  INGEST_S3_REGION: us-east-1
   POSTGRES_DB: wx
-  POSTGRES_HOST: 172.31.51.6
+  POSTGRES_HOST: db.nyc1.as65535.net
   TRACE_EXPORTER: honeycomb
   HONEYCOMB_DATASET: prod
+  DATA_PROVIDER: AZURE_TABLES
+  INGEST_AZURE_TABLE_ACCOUNT_NAME: denormalized
+  INGEST_AZURE_TABLE_NAME: denormalized
