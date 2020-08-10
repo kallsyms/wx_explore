@@ -156,7 +156,9 @@ class AzureTableBackend(DataProvider):
             with TableService(self.account_name, self.account_key).batch(self.table_name) as batch:
                 for row_key, row in row_chunk:
                     valid_time, run_time, x = row_key
-                    batch.insert_entity({
+                    # Insert or merge here because if two models share projection, there may already be
+                    # data for the other model at the same (proj,y,valid_time,run_time,x)
+                    batch.insert_or_merge_entity({
                         'PartitionKey': partition,
                         'RowKey': f"{valid_time.isoformat()},{run_time.isoformat()},{x}",
                         'XShard': x,
