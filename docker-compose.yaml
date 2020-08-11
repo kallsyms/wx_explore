@@ -18,6 +18,12 @@ services:
         expose:
             - 9000
 
+    mongo:
+        image: mongo:latest
+        restart: always
+        expose:
+            - 27017
+
     jaeger:
         image: jaegertracing/all-in-one:latest
         ports:
@@ -36,6 +42,7 @@ services:
         depends_on:
             - db
             - minio
+            - mongo
             - jaeger
         environment:
             - POSTGRES_USER=postgres

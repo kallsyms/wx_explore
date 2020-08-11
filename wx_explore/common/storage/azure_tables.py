@@ -137,7 +137,12 @@ class AzureTableBackend(DataProvider):
         with concurrent.futures.ThreadPoolExecutor() as ex:
             ex.map(lambda y: self._put_fields_worker(proj, fields, y), range(proj.n_y))
 
-    def _put_fields_worker(self, proj: Projection, fields: Dict[Tuple[int, datetime.datetime, datetime.datetime], List[numpy.array]], y: int):
+    def _put_fields_worker(
+            self,
+            proj: Projection,
+            fields: Dict[Tuple[int, datetime.datetime, datetime.datetime], List[numpy.array]],
+            y: int
+    ):
         partition = f"{proj.id}-{y}"
         rows: Dict[Tuple[datetime.datetime, datetime.datetime, int], Dict[str, EntityProperty]] = {}
 
