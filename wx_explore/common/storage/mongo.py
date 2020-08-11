@@ -6,6 +6,7 @@ import datetime
 import logging
 import numpy
 import pymongo
+import pytz
 import zlib
 
 from . import DataProvider
@@ -69,9 +70,9 @@ class MongoBackend(DataProvider):
                 data_point = DataPointSet(
                     values=[val],
                     metric_id=sf.metric.id,
-                    valid_time=item['valid_time'],
+                    valid_time=item['valid_time'].replace(tzinfo=pytz.UTC),
                     source_field_id=sf.id,
-                    run_time=item['run_time'],
+                    run_time=item['run_time'].replace(tzinfo=pytz.UTC),
                 )
 
                 data_points.append(data_point)
