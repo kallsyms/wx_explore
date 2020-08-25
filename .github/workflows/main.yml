@@ -1,0 +1,16 @@
+name: CI
+
+on: [push]
+jobs:
+  build_container:
+    runs-on: ubuntu-latest
+    steps:
+    - name: Build and push Docker images
+      uses: docker/build-push-action@v1.1.0
+      with:
+        username: ${{ github.repository_owner }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+        registry: docker.pkg.github.com
+        repository: ${{ github.repository }}
+        tag_with_ref: true
+        tag_with_sha: true
