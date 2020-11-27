@@ -27,6 +27,7 @@ services:
 
     wx_explore:
         image: kallsyms/wx_explore:latest
+        build: .
         restart: always
         depends_on:
             - db
@@ -47,3 +48,4 @@ services:
             - ./:/opt/wx_explore
         ports:
             - "8080:8080"
+        command: tail -f /dev/null

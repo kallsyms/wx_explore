@@ -59,7 +59,7 @@ def get_xy_for_coord(proj, coords):
 
         for dx in [-1, 0, 1]:
             for dy in [-1, 0, 1]:
-                dist = _dist(x + dx, y + dy, lat, lon, projlats, projlons)
+                dist = _dist((x + dx) % proj.n_x, (y + dy) % proj.n_y, lat, lon, projlats, projlons)
                 if best[0] is None or dist < best[0]:
                     best = (dist, dx, dy)
 
