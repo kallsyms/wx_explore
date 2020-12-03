@@ -18,7 +18,7 @@ def func(req):
     session = Session()
 
     fields = (session.query(SourceField).join(Source, SourceField.source_id == Source.id)
-              .filter(Source.name == req.args['source_name'])
+              .filter(Source.short_name == req.args['source_name'])
               .all())
 
     if not fields:

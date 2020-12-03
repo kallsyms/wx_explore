@@ -18,6 +18,8 @@ sentry-sdk[flask]==0.14.2
 aws-requests-auth==0.4.2
 ogr
 pytz
+lxml
+metpy
 azure-cosmosdb-table==1.0.6
 opentelemetry-api==0.6b0
 opentelemetry-auto-instrumentation==0.6b0

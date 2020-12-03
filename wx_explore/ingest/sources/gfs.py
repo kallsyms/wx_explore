@@ -7,11 +7,11 @@ import logging
 
 from wx_explore.common.logging import init_sentry
 from wx_explore.common.utils import datetime2unix
-from wx_explore.ingest.common import get_queue
-from wx_explore.ingest.sources.source import IngestSource
+from wx_explore.ingest.common import queue_work
+from wx_explore.ingest.sources.grib_source import GRIBSource
 
 
-class GFS(IngestSource):
+class GFS(GRIBSource):
     SOURCE_NAME = "gfs"
 
     @staticmethod
@@ -35,16 +35,18 @@ class GFS(IngestSource):
 
         base_url = run_time.strftime("https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/gfs.%Y%m%d/%H/gfs.t%Hz.pgrb2.0p25.f{}")
 
-        q = get_queue()
         for hr in times:
             url = base_url.format(str(hr).zfill(3))
-            q.put({
-                "source": "gfs",
-                "valid_time": datetime2unix(run_time + timedelta(hours=hr)),
-                "run_time": datetime2unix(run_time),
-                "url": url,
-                "idx_url": url+".idx",
-            }, schedule_at=acquire_time)
+            queue_work(
+                GFS,
+                run_time + timedelta(hours=hr),
+                {
+                    "run_time": datetime2unix(run_time),
+                    "url": url,
+                    "idx_url": url+".idx",
+                },
+                schedule_at=acquire_time,
+            )
 
 
 if __name__ == "__main__":

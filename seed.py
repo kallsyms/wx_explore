@@ -2,41 +2,52 @@
 from wx_explore.common.models import (
     Source,
     SourceField,
+    Metric,
     Location,
     Timezone,
 )
 
 from wx_explore.common import metrics
 from wx_explore.common.db_utils import get_or_create
+from wx_explore.ingest.common import get_source_modules
 from wx_explore.web.core import db
 
 
-sources = [
-    Source(
+sources = {
+    'hrrr': Source(
         short_name='hrrr',
         name='HRRR 2D Surface Data (Sub-Hourly)',
         src_url='http://www.nco.ncep.noaa.gov/pmb/products/hrrr/',
         last_updated=None,
     ),
-    Source(
+    'nam': Source(
         short_name='nam',
         name='North American Model',
         src_url='https://www.nco.ncep.noaa.gov/pmb/products/nam/',
         last_updated=None,
     ),
-    Source(
+    'gfs': Source(
         short_name='gfs',
         name='Global Forecast System',
         src_url='https://www.nco.ncep.noaa.gov/pmb/products/gfs/',
         last_updated=None,
     ),
-]
+    'metar': Source(
+        short_name='metar',
+        name='METAR',
+        src_url='https://www.aviationweather.gov/metar',
+        last_updated=None,
+    ),
+}
 
-for i, s in enumerate(sources):
-    sources[i] = get_or_create(s)
+assert len(sources) == len(get_source_modules())
+
+for source_name, source in sources.items():
+    assert source_name in get_source_modules().keys()
+    sources[source_name] = get_or_create(source)
 
 
-metric_meta = {
+grib_metric_meta = {
     '2m Temperature': {
         'idx_short_name': 'TMP',
         'idx_level': '2 m above ground',
@@ -149,20 +160,52 @@ metric_meta = {
     },
 }
 
-for src in sources:
+for src in (sources[name] for name in ('hrrr', 'nam', 'gfs')):
     for metric in metrics.ALL_METRICS:
         get_or_create(SourceField(
             source_id=src.id,
             metric_id=metric.id,
-            **metric_meta[metric.name],
+            **grib_metric_meta[metric.name],
         ))
 
-# customization
+# GRIB customization
 nam_cloud_cover = SourceField.query.filter(
     SourceField.source.has(short_name='nam'),
     SourceField.metric == metrics.cloud_cover,
 ).first()
 nam_cloud_cover.selectors = {'shortName': 'tcc'}
+
+
+# METAR
+metar_metric_meta = {
+    '2m Temperature': {
+        'idx_short_name': 'temp_c',
+    },
+    'Visibility': {
+        'idx_short_name': 'visibility_statute_mi',
+    },
+    'Surface Pressure': {
+        'idx_short_name': 'sea_level_pressure_mb',
+    },
+    '10m Wind Speed': {
+        'idx_short_name': 'wind_speed_kt',
+    },
+    '10m Wind Direction': {
+        'idx_short_name': 'wind_dir_degrees',
+    },
+    'Gust Speed': {
+        'idx_short_name': 'wind_gust_kt',
+    },
+}
+
+for metric_name, meta in metar_metric_meta.items():
+    metric = Metric.query.filter(Metric.name == metric_name).first()
+    get_or_create(SourceField(
+        source_id=sources['metar'].id,
+        metric_id=metric.id,
+        **metar_metric_meta[metric.name],
+    ))
+
 
 db.session.commit()
 

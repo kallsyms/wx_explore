@@ -91,7 +91,7 @@ class SourceField(Base):
     metric_id = Column(Integer, ForeignKey('metric.id'))
     projection_id = Column(Integer, ForeignKey('projection.id'))
 
-    idx_short_name = Column(String(15))  # e.g. TMP, VIS
+    idx_short_name = Column(String(255))  # e.g. TMP, VIS
     idx_level = Column(String(255))  # e.g. surface, 2 m above ground
     selectors = Column(JSONB)  # e.g. {'name': 'Temperature', 'typeOfLevel': 'surface'}. NULL means this field won't be ingested directly
 
@@ -149,7 +149,7 @@ class Timezone(Base):
     __tablename__ = "timezone"
 
     name = Column(String(512), primary_key=True)
-    geom = deferred(Column(Geometry('POLYGON')))
+    geom = deferred(Column(Geometry('MULTIPOLYGON')))
 
     def utc_offset(self, dt):
         return timezone(self.name).utcoffset(dt)
@@ -162,7 +162,6 @@ class Projection(Base):
     __tablename__ = "projection"
 
     id = Column(Integer, primary_key=True)
-    params = Column(JSONB)
     n_x = Column(Integer)
     n_y = Column(Integer)
     ll_hash = Column(BigInteger)

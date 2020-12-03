@@ -127,8 +127,9 @@ def ingest_grib_file(file_path, source):
             with tracing.start_span('parse message') as span:
                 span.set_attribute('message', str(msg))
 
-                if field.projection is None or field.projection.params != msg.projparams:
-                    projection = get_or_create_projection(msg)
+                projection = get_or_create_projection(*msg.latlons())
+
+                if field.projection is None or field.projection_id != projection.id:
                     field.projection_id = projection.id
                     db.session.commit()
 

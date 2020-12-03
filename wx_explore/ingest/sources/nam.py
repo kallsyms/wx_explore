@@ -7,11 +7,11 @@ import logging
 
 from wx_explore.common.logging import init_sentry
 from wx_explore.common.utils import datetime2unix
-from wx_explore.ingest.common import get_queue
-from wx_explore.ingest.sources.source import IngestSource
+from wx_explore.ingest.common import queue_work
+from wx_explore.ingest.sources.grib_source import GRIBSource
 
 
-class NAM(IngestSource):
+class NAM(GRIBSource):
     SOURCE_NAME = "nam"
 
     @staticmethod
@@ -33,16 +33,18 @@ class NAM(IngestSource):
 
         base_url = run_time.strftime("https://nomads.ncep.noaa.gov/pub/data/nccf/com/nam/prod/nam.%Y%m%d/nam.t%Hz.conusnest.hiresf{}.tm00.grib2")
 
-        q = get_queue()
         for hr in range(time_min, time_max + 1):
             url = base_url.format(str(hr).zfill(2))
-            q.put({
-                "source": "nam",
-                "valid_time": datetime2unix(run_time + timedelta(hours=hr)),
-                "run_time": datetime2unix(run_time),
-                "url": url,
-                "idx_url": url+".idx",
-            }, schedule_at=acquire_time)
+            queue_work(
+                NAM,
+                run_time + timedelta(hours=hr),
+                {
+                    "run_time": datetime2unix(run_time),
+                    "url": url,
+                    "idx_url": url+".idx",
+                },
+                schedule_at=acquire_time,
+            )
 
 
 if __name__ == "__main__":

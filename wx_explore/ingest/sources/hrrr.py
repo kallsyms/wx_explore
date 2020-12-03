@@ -13,15 +13,15 @@ from wx_explore.common.models import (
     SourceField,
 )
 from wx_explore.common.utils import datetime2unix
-from wx_explore.ingest.common import get_queue, get_or_create_projection
+from wx_explore.ingest.common import queue_work, get_or_create_projection
 from wx_explore.ingest.grib import get_end_valid_time
-from wx_explore.ingest.sources.source import IngestSource
+from wx_explore.ingest.sources.grib_source import GRIBSource
 from wx_explore.web.core import db
 
 logger = logging.getLogger(__name__)
 
 
-class HRRR(IngestSource):
+class HRRR(GRIBSource):
     SOURCE_NAME = "hrrr"
 
     @staticmethod
@@ -65,17 +65,17 @@ class HRRR(IngestSource):
             })
 
             if projection is None:
-                projection = get_or_create_projection(msg)
+                projection = get_or_create_projection(*msg.latlons())
 
                 if speed_sf.projection is None:
                     speed_sf.projection_id = projection.id
                 elif speed_sf.projection != projection:
-                    logger.error("Projection change in speed field")
+                    logger.warning("Projection change in speed field")
 
                 if direction_sf.projection is None:
                     direction_sf.projection_id = projection.id
                 elif direction_sf.projection != projection:
-                    logger.error("Projection change in direction field")
+                    logger.warning("Projection change in direction field")
 
                 db.session.commit()
 
@@ -106,16 +106,18 @@ class HRRR(IngestSource):
 
         base_url = run_time.strftime("https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.%Y%m%d/conus/hrrr.t%Hz.wrfsubhf{}.grib2")
 
-        q = get_queue()
         for hr in range(time_min, time_max + 1):
             url = base_url.format(str(hr).zfill(2))
-            q.put({
-                "source": "hrrr",
-                "valid_time": datetime2unix(run_time + timedelta(hours=hr)),
-                "run_time": datetime2unix(run_time),
-                "url": url,
-                "idx_url": url+".idx",
-            }, schedule_at=acquire_time)
+            queue_work(
+                HRRR,
+                run_time + timedelta(hours=hr),
+                {
+                    "run_time": datetime2unix(run_time),
+                    "url": url,
+                    "idx_url": url+".idx",
+                },
+                schedule_at=acquire_time,
+            )
 
 
 if __name__ == "__main__":
