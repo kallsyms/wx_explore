@@ -104,7 +104,7 @@ class HRRR(IngestSource):
             acquire_time = run_time
             acquire_time += timedelta(minutes=45)
 
-        base_url = run_time.strftime("https://nomads.ncep.noaa.gov/pub/data/nccf/com/hrrr/prod/hrrr.%Y%m%d/conus/hrrr.t%Hz.wrfsubhf{}.grib2")
+        base_url = run_time.strftime("https://noaa-hrrr-bdp-pds.s3.amazonaws.com/hrrr.%Y%m%d/conus/hrrr.t%Hz.wrfsubhf{}.grib2")
 
         q = get_queue()
         for hr in range(time_min, time_max + 1):
