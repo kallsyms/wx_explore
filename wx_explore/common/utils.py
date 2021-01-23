@@ -29,7 +29,7 @@ def get_url(url, headers=None, retries=3):
 
     for i in range(retries):
         try:
-            r = requests.get(url, headers=headers)
+            r = requests.get(url, headers=headers, timeout=30)
             if i == 0 and r.status_code == 404:
                 # NOMADS seems to have bad load balancing and will occasionally return 404
                 # for a file that has been previously fetched.

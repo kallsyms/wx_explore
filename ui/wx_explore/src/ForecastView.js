@@ -81,8 +81,8 @@ export default class ForecastView extends React.Component {
     });
     
     if (this.props.match.params.loc_id !== undefined) {
-      Api.get(`/location/${this.props.match.params.loc_id}`).then(({location}) => {
-        this.setState({location});
+      Api.get(`/location/${this.props.match.params.loc_id}`).then(({data}) => {
+        this.setState({location: data});
       });
     } else if (this.props.match.params.lat !== undefined && this.props.match.params.lon !== undefined) {
       Api.get("/location/by_coords", {
@@ -315,6 +315,7 @@ export default class ForecastView extends React.Component {
             <h2>{this.state.location.name}</h2>
           </Col>
         </Row>
+        {this.coreMetricsBox(0)}
         <Row className="justify-content-md-center">
           <Col md="auto">
             <p style={{fontSize: "1.5em"}}>{this.summarize(0)}</p>

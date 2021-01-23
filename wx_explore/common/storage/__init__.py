@@ -42,6 +42,7 @@ class DataProvider(object):
 def get_provider():
     from .s3 import S3Backend
     from .azure_tables import AzureTableBackend
+    from .mongo import MongoBackend
 
     if Config.DATA_PROVIDER == "S3":
         return S3Backend(
@@ -56,6 +57,12 @@ def get_provider():
             Config.INGEST_AZURE_TABLE_ACCOUNT_NAME,
             Config.INGEST_AZURE_TABLE_ACCOUNT_KEY,
             Config.INGEST_AZURE_TABLE_NAME,
+        )
+    elif Config.DATA_PROVIDER == "MONGO":
+        return MongoBackend(
+            Config.INGEST_MONGO_SERVER_URI,
+            Config.INGEST_MONGO_DATABASE,
+            Config.INGEST_MONGO_COLLECTION,
         )
 
 

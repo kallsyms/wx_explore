@@ -1,3 +1,5 @@
 #!/bin/sh
-docker build -t kallsyms/wx_explore .
-docker-compose run --rm -p 8080:8080 wx_explore /bin/bash
+export COMPOSE_FILE=docker-compose.dev.yaml
+docker-compose create && docker-compose start
+docker-compose exec wx_explore /opt/wx_explore/seed.py
+docker-compose exec wx_explore /bin/bash

@@ -33,7 +33,7 @@ class GFS(IngestSource):
             acquire_time = run_time
             acquire_time += timedelta(hours=3, minutes=30)
 
-        base_url = run_time.strftime("https://nomads.ncep.noaa.gov/pub/data/nccf/com/gfs/prod/gfs.%Y%m%d/%H/gfs.t%Hz.pgrb2.0p25.f{}")
+        base_url = run_time.strftime("https://noaa-gfs-bdp-pds.s3.amazonaws.com/gfs.%Y%m%d/%H/gfs.t%Hz.pgrb2.0p25.f{}")
 
         q = get_queue()
         for hr in times:

@@ -26,7 +26,11 @@ export default class LocationSearchField extends React.Component {
         renderMenuItemChildren={(option, props) => (
           <LocationResult key={option.id} loc={option} />
         )}
-        onChange={this.props.onChange}
+        onChange={(selected) => {
+            if (selected.length > 0) {
+                this.props.onChange(selected);
+            }
+        }}
       />
     );
   }
