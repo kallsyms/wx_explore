@@ -36,8 +36,6 @@ services:
             - TRACE_EXPORTER=honeycomb
             - HONEYCOMB_DATASET=prod
             - HONEYCOMB_API_KEY
-        volumes:
-            - ./:/opt/wx_explore
         ports:
             - "80:8080"
 

@@ -7,7 +7,6 @@ from sqlalchemy import (
     String,
     Boolean,
     DateTime,
-    LargeBinary,
     ForeignKey,
     UniqueConstraint,
 )
@@ -149,7 +148,7 @@ class Timezone(Base):
     __tablename__ = "timezone"
 
     name = Column(String(512), primary_key=True)
-    geom = deferred(Column(Geometry('POLYGON')))
+    geom = deferred(Column(Geometry('MULTIPOLYGON')))
 
     def utc_offset(self, dt):
         return timezone(self.name).utcoffset(dt)

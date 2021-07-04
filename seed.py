@@ -213,6 +213,7 @@ db.session.commit()
 ###
 # Timezones
 ###
+import geoalchemy2
 import os
 import osgeo.ogr
 import requests
@@ -236,7 +237,7 @@ with tempfile.TemporaryDirectory() as tmpdir:
     for feature in (layer.GetFeature(i) for i in range(layer.GetFeatureCount())):
         tzs.append(Timezone(
             name=feature.GetField("tzid"),
-            geom=feature.GetGeometryRef().ExportToWkt(),
+            geom=geoalchemy2.functions.ST_Multi(feature.GetGeometryRef().ExportToWkt()),
         ))
 
     db.session.add_all(tzs)

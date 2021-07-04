@@ -1,8 +1,9 @@
 from opentelemetry import trace
 from opentelemetry.ext.honeycomb import HoneycombSpanExporter
-from opentelemetry.ext.jaeger import JaegerSpanExporter
+from opentelemetry.exporter.jaeger.thrift import JaegerExporter
+from opentelemetry.sdk.resources import Resource
 from opentelemetry.sdk.trace import TracerProvider
-from opentelemetry.sdk.trace.export import BatchExportSpanProcessor
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
 
 
 tracer = None
@@ -14,8 +15,7 @@ def init_tracing(service_name):
     if Config.TRACE_EXPORTER is None:
         return
     elif Config.TRACE_EXPORTER == 'jaeger':
-        exporter = JaegerSpanExporter(
-            service_name=service_name,
+        exporter = JaegerExporter(
             agent_host_name=Config.JAEGER_HOST,
             agent_port=6831,
         )
@@ -28,8 +28,10 @@ def init_tracing(service_name):
     else:
         raise ValueError(f"TRACE_EXPORTER {Config.TRACE_EXPORTER} is not valid")
 
-    trace.set_tracer_provider(TracerProvider())
-    span_processor = BatchExportSpanProcessor(exporter)
+    resource = Resource.create(attributes={"service.name": service_name})
+
+    trace.set_tracer_provider(TracerProvider(resource=resource))
+    span_processor = BatchSpanProcessor(exporter)
     trace.get_tracer_provider().add_span_processor(span_processor)
 
     # This isn't great but oh well
@@ -38,6 +40,9 @@ def init_tracing(service_name):
 
 
 class NoOpSpan():  #(trace.Span)
+    """
+    Dummy Span class for use when no tracing is desired
+    """
     def __enter__(self):
         return self
 
@@ -48,8 +53,8 @@ class NoOpSpan():  #(trace.Span)
         pass
 
 
-def start_span(span_name, parent=trace.Tracer.CURRENT_SPAN):
+def start_span(span_name, parent=None):
     if tracer:
-        return tracer.start_as_current_span(span_name, parent=parent)
+        return tracer.start_as_current_span(span_name)
     else:
         return NoOpSpan()

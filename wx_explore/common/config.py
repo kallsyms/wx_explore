@@ -39,4 +39,4 @@ class Config():
     HONEYCOMB_DATASET = os.environ.get('HONEYCOMB_DATASET')
 
 
-Config.SQLALCHEMY_DATABASE_URI = f"postgres://{Config.POSTGRES_USER}:{Config.POSTGRES_PASS}@{Config.POSTGRES_HOST}:{Config.POSTGRES_PORT}/{Config.POSTGRES_DB}"
+Config.SQLALCHEMY_DATABASE_URI = f"postgresql://{Config.POSTGRES_USER}:{Config.POSTGRES_PASS}@{Config.POSTGRES_HOST}:{Config.POSTGRES_PORT}/{Config.POSTGRES_DB}"

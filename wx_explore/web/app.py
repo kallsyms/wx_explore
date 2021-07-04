@@ -1,4 +1,4 @@
-from opentelemetry.ext.flask import FlaskInstrumentor
+from opentelemetry.instrumentation.flask import FlaskInstrumentor
 
 FlaskInstrumentor().instrument()
 

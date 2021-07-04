@@ -10,6 +10,7 @@ import pytz
 import zlib
 
 from . import DataProvider
+from wx_explore.common import tracing
 from wx_explore.common.models import (
     Projection,
     SourceField,
@@ -46,15 +47,16 @@ class MongoBackend(DataProvider):
         nearest_row_x = ((x // self.n_x_per_row) * self.n_x_per_row)
         rel_x = x - nearest_row_x
 
-        results = self.collection.find({
-            'proj_id': proj_id,
-            'y': y,
-            'x_shard': nearest_row_x,
-            'valid_time': {
-                '$gte': start,
-                '$lt': end,
-            },
-        })
+        with tracing.start_span('get_fields lookup'):
+            results = self.collection.find({
+                'proj_id': proj_id,
+                'y': y,
+                'x_shard': nearest_row_x,
+                'valid_time': {
+                    '$gte': start,
+                    '$lt': end,
+                },
+            })
 
         data_points = []
 
@@ -96,24 +98,28 @@ class MongoBackend(DataProvider):
     ):
         rows: Dict[Tuple[datetime.datetime, datetime.datetime, int], Dict[str, Any]] = {}
 
-        for (field_id, valid_time, run_time), msgs in fields.items():
-            for x in range(0, proj.n_x, self.n_x_per_row):
-                row_key = (valid_time, run_time, x)
+        with tracing.start_span('put_fields transformations') as span:
+            span.set_attribute("num_fields", len(fields))
 
-                if row_key not in rows:
-                    rows[row_key] = {
-                        'proj_id': proj.id,
-                        'valid_time': valid_time,
-                        'run_time': run_time,
-                        'y': y,
-                        'x_shard': x,
-                    }
+            for (field_id, valid_time, run_time), msgs in fields.items():
+                for x in range(0, proj.n_x, self.n_x_per_row):
+                    row_key = (valid_time, run_time, x)
 
-                for msg in msgs:
-                    # XXX: this only keeps last msg per field breaking ensembles
-                    rows[row_key][f"sf{field_id}"] = zlib.compress(msg[y][x:x+self.n_x_per_row].tobytes())
+                    if row_key not in rows:
+                        rows[row_key] = {
+                            'proj_id': proj.id,
+                            'valid_time': valid_time,
+                            'run_time': run_time,
+                            'y': y,
+                            'x_shard': x,
+                        }
 
-        self.collection.insert_many(rows.values())
+                    for msg in msgs:
+                        # XXX: this only keeps last msg per field breaking ensembles
+                        rows[row_key][f"sf{field_id}"] = zlib.compress(msg[y][x:x+self.n_x_per_row].tobytes())
+
+        with tracing.start_span('put_fields saving') as span:
+            self.collection.insert_many(rows.values())
 
     def clean(self, oldest_time: datetime.datetime):
         for proj in Projection.query.all():
