@@ -4,26 +4,19 @@ services:
     db:
         image: mdillon/postgis:11
         restart: always
+        volumes:
+            - db:/var/lib/postgresql/data
         expose:
             - 5432
 
     mongo:
         image: mongo:latest
         restart: always
+        #command: --wiredTigerCacheSizeGB 4.0
+        volumes:
+            - mongo:/data/db
         expose:
             - 27017
-
-    jaeger:
-        image: jaegertracing/all-in-one:latest
-        ports:
-            - "5775:5775/udp"
-            - "5778:5778"
-            - "6831:6831/udp"
-            - "6832:6832/udp"
-            - "14268:14268"
-            - "16686:16686"
-        expose:
-            - 6831
 
     wx_explore:
         image: kallsyms/wx_explore:latest
@@ -31,7 +24,6 @@ services:
         depends_on:
             - db
             - mongo
-            - jaeger
         environment:
             - POSTGRES_USER=postgres
             - POSTGRES_PASS=postgres
@@ -41,9 +33,14 @@ services:
             - INGEST_MONGO_SERVER_URI=mongodb://mongo:27017/
             - INGEST_MONGO_DATABASE=wx
             - INGEST_MONGO_COLLECTION=wx
-            - TRACE_EXPORTER=jaeger
-            - JAEGER_HOST=jaeger
+            - TRACE_EXPORTER=honeycomb
+            - HONEYCOMB_DATASET=prod
+            - HONEYCOMB_API_KEY
         volumes:
             - ./:/opt/wx_explore
         ports:
-            - "8080:8080"
+            - "80:8080"
+
+volumes:
+    db:
+    mongo:
