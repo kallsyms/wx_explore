@@ -4,11 +4,9 @@ flask_cors~=3.0
 psycopg2-binary==2.8.6
 pq~=1.9
 geoalchemy2==0.8.4
-numpy==1.19.2
 shapely==1.7.1
-pyproj==2.4.2.post1
-https://github.com/kallsyms/pygrib/releases/download/v2.0.4-wheel/pygrib-2.0.4-cp36-cp36m-manylinux1_x86_64.whl
-scipy==1.5.2
+pygrib==2.1.4
+scipy==1.7.3
 urllib3>=1.25.4
 requests~=2.25
 pillow==8.1.0
