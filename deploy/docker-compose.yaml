@@ -2,7 +2,8 @@ version: '3.1'
 
 services:
     db:
-        image: mdillon/postgis:11
+        # https://github.com/postgis/docker-postgis/issues/216
+        image: ghcr.io/baosystems/postgis:13-3.2
         restart: always
         volumes:
             - db:/var/lib/postgresql/data
@@ -12,7 +13,7 @@ services:
     mongo:
         image: mongo:latest
         restart: always
-        #command: --wiredTigerCacheSizeGB 4.0
+        command: --logpath /dev/null
         volumes:
             - mongo:/data/db
         expose:
@@ -33,9 +34,6 @@ services:
             - INGEST_MONGO_SERVER_URI=mongodb://mongo:27017/
             - INGEST_MONGO_DATABASE=wx
             - INGEST_MONGO_COLLECTION=wx
-            - TRACE_EXPORTER=honeycomb
-            - HONEYCOMB_DATASET=prod
-            - HONEYCOMB_API_KEY
         ports:
             - "80:8080"
 

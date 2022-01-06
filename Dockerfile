@@ -3,7 +3,7 @@ FROM ubuntu:18.04
 ENV DEBIAN_FRONTEND=noninteractive
 
 RUN apt-get update && apt-get install -y \
-    git curl wget vim build-essential libbz2-dev libssl-dev libreadline-dev \
+    build-essential libbz2-dev libssl-dev libreadline-dev \
     libsqlite3-dev tk-dev libpng-dev libfreetype6-dev software-properties-common\
     gdal-bin libgdal-dev libgrib-api-dev python3 python3-pip gunicorn3
 
