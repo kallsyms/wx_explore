@@ -1,4 +1,7 @@
 #!/usr/bin/env python3
+import logging
+logging.basicConfig(level=logging.INFO)
+
 from wx_explore.common.models import (
     Source,
     SourceField,
@@ -32,6 +35,7 @@ sources = [
     ),
 ]
 
+logging.info("Creating sources")
 for i, s in enumerate(sources):
     sources[i] = get_or_create(s)
 
@@ -149,6 +153,7 @@ metric_meta = {
     },
 }
 
+logging.info("Creating source fields")
 for src in sources:
     for metric in metrics.ALL_METRICS:
         get_or_create(SourceField(
@@ -176,6 +181,7 @@ from shapely.geometry import Point
 
 locs = []
 
+logging.info("Loading locations: ZIP codes")
 with open("data/zipcodes/US.txt", encoding="utf8") as f:
     rd = csv.reader(f, delimiter='\t', quotechar='"')
     for row in rd:
@@ -190,6 +196,7 @@ with open("data/zipcodes/US.txt", encoding="utf8") as f:
             location=wkt.dumps(Point(lon, lat)),
         ))
 
+logging.info("Loading locations: world cities")
 with open("data/cities/worldcities.csv", encoding="utf8") as f:
     f.readline()  # skip header line
     rd = csv.reader(f)
@@ -206,6 +213,7 @@ with open("data/cities/worldcities.csv", encoding="utf8") as f:
             population=population,
         ))
 
+logging.info("Creating locations")
 db.session.add_all(locs)
 db.session.commit()
 
@@ -215,12 +223,14 @@ db.session.commit()
 ###
 import geoalchemy2
 import os
-import osgeo.ogr
+import pygeoif
 import requests
+import shapefile
 import shutil
 import tempfile
 import zipfile
 
+logging.info("Creating timezones")
 with tempfile.TemporaryDirectory() as tmpdir:
     with tempfile.TemporaryFile() as tmpf:
         with requests.get('https://github.com/evansiroky/timezone-boundary-builder/releases/download/2020a/timezones-with-oceans.shapefile.zip', stream=True) as resp:
@@ -229,15 +239,14 @@ with tempfile.TemporaryDirectory() as tmpdir:
         with zipfile.ZipFile(tmpf) as z:
             z.extractall(tmpdir)
 
-    shapefile = osgeo.ogr.Open(os.path.join(tmpdir, 'dist'))
-    layer = shapefile.GetLayer(0)
+    shapefile = shapefile.Reader(os.path.join(tmpdir, 'dist/combined-shapefile-with-oceans'))
 
     tzs = []
 
-    for feature in (layer.GetFeature(i) for i in range(layer.GetFeatureCount())):
+    for sr in shapefile.iterShapeRecords():
         tzs.append(Timezone(
-            name=feature.GetField("tzid"),
-            geom=geoalchemy2.functions.ST_Multi(feature.GetGeometryRef().ExportToWkt()),
+            name=sr.record.tzid,
+            geom=geoalchemy2.functions.ST_Multi(pygeoif.geometry.as_shape(sr.shape).wkt),
         ))
 
     db.session.add_all(tzs)

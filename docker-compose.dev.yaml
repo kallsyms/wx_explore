@@ -21,7 +21,7 @@ services:
             - "16686:16686"
 
     wx_explore:
-        image: kallsyms/wx_explore:latest
+        image: wx_explore:latest
         build: .
         restart: always
         depends_on:

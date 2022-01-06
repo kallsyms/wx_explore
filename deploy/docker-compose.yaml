@@ -20,7 +20,7 @@ services:
             - 27017
 
     wx_explore:
-        image: kallsyms/wx_explore:latest
+        image: ghcr.io/kallsyms/wx_explore:master
         restart: always
         depends_on:
             - db
