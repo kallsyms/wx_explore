@@ -46,15 +46,15 @@ def get_url(url, headers=None, retries=3):
     else:
         raise Exception(f"Unable to download file after {retries} retries!")
 
-    if not (200 <= r.status_code < 300):
+    if not r.ok:
         raise Exception(f"Unable to download file: unexpected status code {r.status_code}")
 
     return r
 
 
 def url_exists(url):
-    r = requests.head(url)
-    return 200 <= r.status_code < 300
+    r = requests.head(url, allow_redirects=True)
+    return 200 <= r.status_code < 400
 
 
 def chunk(it, size):

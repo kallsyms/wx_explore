@@ -155,7 +155,7 @@ class AzureTableBackend(DataProvider):
 
                 for msg in msgs:
                     # XXX: this only keeps last msg per field breaking ensembles
-                    rows[row_key][f"sf{field_id}"] = EntityProperty(EdmType.BINARY, zlib.compress(msg[y][x:x+self.n_x_per_row].tobytes()))
+                    rows[row_key][f"sf{field_id}"] = EntityProperty(EdmType.BINARY, zlib.compress(msg[y][x:x+self.n_x_per_row].astype(numpy.float32).tobytes()))
 
         for row_chunk in chunk(rows.items(), 100):
             with TableService(self.account_name, self.account_key).batch(self.table_name) as batch:
