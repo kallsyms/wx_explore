@@ -1,0 +1,6 @@
+0 * * * * docker exec wx_explore_wx_explore_1 python3 -m wx_explore.ingest.clean
+*/20 * * * * docker exec wx_explore_wx_explore_1 python3 -m wx_explore.ingest.worker
+
+0 * * * * docker exec wx_explore_wx_explore_1 python3 -m wx_explore.ingest.sources.hrrr
+0 */6 * * * docker exec wx_explore_wx_explore_1 python3 -m wx_explore.ingest.sources.gfs
+0 */6 * * * docker exec wx_explore_wx_explore_1 python3 -m wx_explore.ingest.sources.nam
