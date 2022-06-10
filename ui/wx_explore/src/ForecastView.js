@@ -109,7 +109,7 @@ export default class ForecastView extends React.Component {
     }
     
     // ... or when location changed
-    if (prevState.location == this.state.location) {
+    if (prevState.location === this.state.location) {
       return;
     }
 
@@ -208,6 +208,8 @@ export default class ForecastView extends React.Component {
       case 'cloudy':
         cloudCoverIcon = 'wi-cloudy';
         break;
+      default:
+        cloudCoverIcon = 'wi-alien'; // idk
     }
 
     return (
