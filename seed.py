@@ -33,6 +33,12 @@ sources = [
         src_url='https://www.nco.ncep.noaa.gov/pmb/products/gfs/',
         last_updated=None,
     ),
+    Source(
+        short_name='rrfs',
+        name='Rapid Refresh Forecast System',
+        src_url='https://gsl.noaa.gov/focus-areas/unified_forecast_system/rrfs',
+        last_updated=None,
+    ),
 ]
 
 logging.info("Creating sources")
@@ -168,6 +174,18 @@ nam_cloud_cover = SourceField.query.filter(
     SourceField.metric == metrics.cloud_cover,
 ).first()
 nam_cloud_cover.selectors = {'shortName': 'tcc'}
+
+# RRFS index names use "entire atmosphere (considered as a single layer)" instead of just "entire atmosphere"
+rrfs_refc = SourceField.query.filter(
+    SourceField.source.has(short_name='rrfs'),
+    SourceField.metric == metrics.cloud_cover,
+).first()
+rrfs_refc.idx_level = 'entire atmosphere (considered as a single layer)'
+rrfs_cloud_cover = SourceField.query.filter(
+    SourceField.source.has(short_name='rrfs'),
+    SourceField.metric == metrics.cloud_cover,
+).first()
+rrfs_cloud_cover.idx_level = 'entire atmosphere (considered as a single layer)'
 
 db.session.commit()
 
