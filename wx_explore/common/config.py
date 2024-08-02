@@ -4,11 +4,11 @@ import os
 class Config():
     SECRET_KEY = os.environ.get('SECRET_KEY', os.urandom(32))
 
-    POSTGRES_USER = os.environ['POSTGRES_USER']
-    POSTGRES_PASS = os.environ['POSTGRES_PASS']
-    POSTGRES_HOST = os.environ['POSTGRES_HOST']
-    POSTGRES_PORT = int(os.environ.get('POSTGRES_PORT', 5432))
-    POSTGRES_DB   = os.environ['POSTGRES_DB']
+    POSTGRES_USER = "bismuth"
+    POSTGRES_PASS = os.environ['BISMUTH_AUTH']
+    POSTGRES_HOST = "169.254.169.254"
+    POSTGRES_PORT = 5432
+    POSTGRES_DB   = "bismuth"
     SQLALCHEMY_TRACK_MODIFICATIONS = False
 
     DATA_PROVIDER = os.environ['DATA_PROVIDER']

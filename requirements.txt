@@ -1,12 +1,12 @@
 flask==1.1.2
 flask_sqlalchemy==2.4.4
 flask_cors~=3.0
-psycopg2-binary==2.8.6
+psycopg2-binary
 pq~=1.9
 geoalchemy2==0.8.4
 shapely==1.7.1
-pygrib==2.1.4
-scipy==1.7.3
+pygrib==2.1.6
+scipy
 urllib3>=1.25.4
 requests~=2.25
 pillow==8.1.0
