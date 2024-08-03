@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 import logging
 logging.basicConfig(level=logging.INFO)
+import pathlib
 
 from wx_explore.common.models import (
     Source,
@@ -183,7 +184,7 @@ def seed():
             locs = []
 
             logging.info("Loading locations: ZIP codes")
-            with open("data/zipcodes/US.txt", encoding="utf8") as f:
+            with open(pathlib.Path(__file__).parent.parent.parent / "data/zipcodes/US.txt", encoding="utf8") as f:
                 rd = csv.reader(f, delimiter='\t', quotechar='"')
                 for row in rd:
                     if not row[3]:
@@ -198,7 +199,7 @@ def seed():
                     ))
 
             logging.info("Loading locations: world cities")
-            with open("data/cities/worldcities.csv", encoding="utf8") as f:
+            with open(pathlib.Path(__file__).parent.parent.parent / "data/cities/worldcities.csv", encoding="utf8") as f:
                 f.readline()  # skip header line
                 rd = csv.reader(f)
                 for row in rd:
