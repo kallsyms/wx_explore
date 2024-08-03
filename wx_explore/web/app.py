@@ -1,7 +1,3 @@
-from opentelemetry.instrumentation.flask import FlaskInstrumentor
-
-FlaskInstrumentor().instrument()
-
 from wx_explore.web.core import app, db
 from wx_explore.web.api import api
 app.register_blueprint(api)
