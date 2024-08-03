@@ -1,5 +1,6 @@
 from wx_explore.common.models import Metric
 from wx_explore.common.db_utils import get_or_create
+from wx_explore.web.core import app
 
 with app.app_context():
     temp = get_or_create(Metric(
