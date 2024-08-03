@@ -2,7 +2,7 @@ import math
 import numpy
 
 from wx_explore.common.models import Projection
-from wx_explore.web.core import db
+from wx_explore.web.core import app, db
 
 
 lut_meta = {}
@@ -25,8 +25,9 @@ def preload_coordinate_lookup_meta():
     """
     Preload all projection metadata for quick lookups
     """
-    for proj in Projection.query.all():
-        get_lookup_meta(proj)
+    with app.app_context():
+        for proj in Projection.query.all():
+            get_lookup_meta(proj)
 
 
 def clear_proj_cache():
