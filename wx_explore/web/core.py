@@ -11,4 +11,5 @@ CORS(app)
 from wx_explore.common.models import Base
 db = SQLAlchemy(app, model_class=Base)
 
-db.create_all()
+with app.app_context():
+    db.create_all()
