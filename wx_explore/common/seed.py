@@ -224,33 +224,38 @@ def seed():
         # Timezones
         ###
         if Timezone.query.count() == 0:
-            import geoalchemy2
-            import os
-            import pygeoif
-            import requests
-            import shapefile
-            import shutil
-            import tempfile
-            import zipfile
+            import threading
+            threading.Thread(target=seed_timezones).start()
 
-            logging.info("Creating timezones")
-            with tempfile.TemporaryDirectory() as tmpdir:
-                with tempfile.TemporaryFile() as tmpf:
-                    with requests.get('https://github.com/evansiroky/timezone-boundary-builder/releases/download/2020a/timezones-with-oceans.shapefile.zip', stream=True) as resp:
-                        shutil.copyfileobj(resp.raw, tmpf)
+def seed_timezones():
+    import geoalchemy2
+    import os
+    import pygeoif
+    import requests
+    import shapefile
+    import shutil
+    import tempfile
+    import zipfile
 
-                    with zipfile.ZipFile(tmpf) as z:
-                        z.extractall(tmpdir)
-
-                shapefile = shapefile.Reader(os.path.join(tmpdir, 'dist/combined-shapefile-with-oceans'))
-
-                tzs = []
-
-                for sr in shapefile.iterShapeRecords():
-                    tzs.append(Timezone(
-                        name=sr.record.tzid,
-                        geom=geoalchemy2.functions.ST_Multi(pygeoif.geometry.as_shape(sr.shape).wkt),
-                    ))
-
-                db.session.add_all(tzs)
-                db.session.commit()
+    with app.app_context():
+        logging.info("Creating timezones")
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with tempfile.TemporaryFile() as tmpf:
+                with requests.get('https://github.com/evansiroky/timezone-boundary-builder/releases/download/2024a/timezones-with-oceans.shapefile.zip', stream=True) as resp:
+                    shutil.copyfileobj(resp.raw, tmpf)
+    
+                with zipfile.ZipFile(tmpf) as z:
+                    z.extractall(tmpdir)
+    
+            shapefile = shapefile.Reader(os.path.join(tmpdir, 'dist/combined-shapefile-with-oceans'))
+    
+            tzs = []
+    
+            for sr in shapefile.iterShapeRecords():
+                tzs.append(Timezone(
+                    name=sr.record.tzid,
+                    geom=geoalchemy2.functions.ST_Multi(pygeoif.geometry.as_shape(sr.shape).wkt),
+                ))
+    
+            db.session.add_all(tzs)
+            db.session.commit()
